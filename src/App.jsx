@@ -679,7 +679,7 @@ const GameForm=({game,group,adminUser,onSave,onCancel,onSendRequest})=>{
   const [showModal,setShowModal]=useState(false);
   useEffect(()=>{
     if(game){setForm({...game,recurrence:game.recurrence||recurrenceDefault,recurring:game.recurring||false});}
-  },[game?.id,recurrenceDefault]);
+  },[game?.id]);
 
   const sf=(k,v)=>setForm(f=>({...f,[k]:v}));
   const sr=(k,v)=>setForm(f=>({...f,recurrence:{...f.recurrence,[k]:v}}));
