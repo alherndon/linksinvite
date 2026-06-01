@@ -284,7 +284,6 @@ const AuthPage=({onAuth,onSetDb})=>{
 const TopNav=({page,setPage,user,group,groups,onGroupChange,onSignOut})=>{
   const [open,setOpen]=useState(false);
   const mem=group?getMem(group,user.id):null;
-  const canEditGroup=group&&["superadmin","admin"].includes(mem?.role);
   return (
     <nav style={{background:S.surface,borderBottom:`1px solid ${S.cardBorder}`,padding:"0 20px",display:"flex",alignItems:"center",height:56,position:"sticky",top:0,zIndex:100,gap:12}}>
       <div style={{display:"flex",alignItems:"center",gap:8,marginRight:"auto"}}>
@@ -300,7 +299,7 @@ const TopNav=({page,setPage,user,group,groups,onGroupChange,onSignOut})=>{
         </select>
       )}
       <div style={{display:"flex",gap:2}}>
-        {[{id:"splash",label:"Games"},{id:"profile",label:"Profile"},...(canEditGroup?[{id:"admin",label:"Admin"}]:[])].map(({id,label})=>(
+        {[{id:"splash",label:"Games"},{id:"profile",label:"Profile"},...(group&&canEdit(group,user.id)?[{id:"admin",label:"Admin"}]:[])].map(({id,label})=>(
           <button key={id} onClick={()=>setPage(id)} style={{background:page===id?S.accentSubtle:"transparent",border:"none",borderRadius:8,padding:"6px 12px",color:page===id?S.accent:S.textMuted,fontSize:13,fontWeight:page===id?600:400,cursor:"pointer",fontFamily:"inherit"}}>{label}</button>
         ))}
       </div>
@@ -672,16 +671,10 @@ const LocationsTab=({group,onUpdate,superAdmin})=>{
 // ── GAME FORM ─────────────────────────────────────────────────────────────────
 const GameForm=({game,group,adminUser,onSave,onCancel,onSendRequest})=>{
   const isNew=!game;
-  const recurrenceDefault={frequency:"weekly",interval:1,weeklyDays:["Saturday"],monthlyOption:"dayOfMonth",monthlyDay:1,monthlyWeek:"first",monthlyWeekday:"Saturday",yearlyMonth:"January",yearlyDay:1,endType:"never",endAfter:10,endDate:""};
-  const [form,setForm]=useState(game?{...game,recurrence:game.recurrence||recurrenceDefault,recurring:game.recurring||false}:{day:"Saturday",date:"",time:"8:00 AM",locationId:group.locations[0]?.id||"",description:"",rules:"",pairingMethod:"balanced",assignFoursomes:true,maxPlayers:16,recurring:false,recurrence:recurrenceDefault});
+  const [form,setForm]=useState(game||{day:"Saturday",date:"",time:"8:00 AM",locationId:group.locations[0]?.id||"",description:"",rules:"",pairingMethod:"balanced",assignFoursomes:true,maxPlayers:16,recurring:false});
   const [saved,setSaved]=useState(false);
   const [showModal,setShowModal]=useState(false);
   const sf=(k,v)=>setForm(f=>({...f,[k]:v}));
-  const sr=(k,v)=>setForm(f=>({...f,recurrence:{...f.recurrence,[k]:v}}));
-  const toggleWeeklyDay=day=>{
-    const days=form.recurrence.weeklyDays.includes(day)?form.recurrence.weeklyDays.filter(d=>d!==day):[...form.recurrence.weeklyDays,day];
-    sr("weeklyDays",days);
-  };
   const selLoc=getLoc(group,form.locationId);
   const contact=selLoc?.teeTimeContact||{};
   const hasContact=!!(contact.email||contact.name);
@@ -710,7 +703,7 @@ const GameForm=({game,group,adminUser,onSave,onCancel,onSendRequest})=>{
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
           <Sel label="Day" value={form.day} onChange={v=>sf("day",v)} options={["Saturday","Sunday","Monday","Tuesday","Wednesday","Thursday","Friday"].map(d=>({value:d,label:d}))}/>
           <Inp label="Date" value={form.date} onChange={v=>sf("date",v)} placeholder="June 7, 2025" required/>
-          <Inp label="1st Tee Time" value={form.time} onChange={v=>sf("time",v)} placeholder="8:00 AM" required/>
+          <Inp label="Tee Time" value={form.time} onChange={v=>sf("time",v)} placeholder="8:00 AM" required/>
         </div>
         <Sel label="Location" value={form.locationId} onChange={v=>sf("locationId",v)} options={group.locations.map(l=>({value:l.id,label:l.name}))}/>
 
@@ -742,57 +735,7 @@ const GameForm=({game,group,adminUser,onSave,onCancel,onSendRequest})=>{
           <Inp label="Max Players" type="number" value={form.maxPlayers} onChange={v=>sf("maxPlayers",parseInt(v)||0)}/>
         </div>
         <Tog label="Recurring game" value={form.recurring} onChange={v=>sf("recurring",v)} hint="Auto-creates next week's game after this one closes"/>
-        {form.recurring&&(
-          <Card style={{marginBottom:14,background:S.surface,border:`1px solid ${S.cardBorder}`}}>
-            <SecTitle>Recurrence</SecTitle>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-              <Sel label="Repeat" value={form.recurrence.frequency} onChange={v=>sr("frequency",v)} options={RECURRENCE_OPTIONS}/>
-              <Inp label="Every" type="number" value={form.recurrence.interval} onChange={v=>sr("interval",Math.max(1,parseInt(v)||1))} placeholder="1" hint="Repeat every N periods"/>
-            </div>
-            {form.recurrence.frequency==="weekly"&&(
-              <div style={{marginBottom:14}}>
-                <div style={{fontSize:12,fontWeight:600,color:S.textMuted,marginBottom:8}}>Repeat on</div>
-                <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8}}>
-                  {WEEKDAYS.map(day=>{
-                    const active=form.recurrence.weeklyDays.includes(day);
-                    return (
-                      <button key={day} type="button" onClick={()=>toggleWeeklyDay(day)} style={{padding:"8px 10px",borderRadius:8,border:`1px solid ${active?S.accent:S.cardBorder}`,background:active?S.accentSubtle:"transparent",color:active?S.accent:S.text,cursor:"pointer",fontSize:12,fontFamily:"inherit"}}>{day.slice(0,3)}</button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-            {form.recurrence.frequency==="monthly"&&(
-              <div style={{marginBottom:14}}>
-                <Sel label="Monthly repeat" value={form.recurrence.monthlyOption} onChange={v=>sr("monthlyOption",v)} options={[{value:"dayOfMonth",label:"Day of month"},{value:"weekday",label:"Weekday pattern"}]}/>
-                {form.recurrence.monthlyOption==="dayOfMonth"?
-                  <Inp label="Day" type="number" value={form.recurrence.monthlyDay} onChange={v=>sr("monthlyDay",Math.max(1,Math.min(31,parseInt(v)||1)))} placeholder="1"/>
-                  :
-                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                    <Sel label="Week" value={form.recurrence.monthlyWeek} onChange={v=>sr("monthlyWeek",v)} options={[{value:"first",label:"First"},{value:"second",label:"Second"},{value:"third",label:"Third"},{value:"fourth",label:"Fourth"},{value:"last",label:"Last"}]}/>
-                    <Sel label="Day" value={form.recurrence.monthlyWeekday} onChange={v=>sr("monthlyWeekday",v)} options={WEEKDAYS.map(d=>({value:d,label:d}))}/>
-                  </div>
-                }
-              </div>
-            )}
-            {form.recurrence.frequency==="yearly"&&(
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
-                <Sel label="Month" value={form.recurrence.yearlyMonth} onChange={v=>sr("yearlyMonth",v)} options={MONTHS.map(m=>({value:m,label:m}))}/>
-                <Inp label="Day" type="number" value={form.recurrence.yearlyDay} onChange={v=>sr("yearlyDay",Math.max(1,Math.min(31,parseInt(v)||1)))} placeholder="1"/>
-              </div>
-            )}
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-              <Sel label="Ends" value={form.recurrence.endType} onChange={v=>sr("endType",v)} options={[{value:"never",label:"Never"},{value:"after",label:"After occurrences"},{value:"on",label:"On date"}]}/>
-              {form.recurrence.endType==="after"?
-                <Inp label="Occurrences" type="number" value={form.recurrence.endAfter} onChange={v=>sr("endAfter",Math.max(1,parseInt(v)||1))}/>
-                : form.recurrence.endType==="on"?
-                  <Inp label="End date" value={form.recurrence.endDate} onChange={v=>sr("endDate",v)} placeholder="December 31, 2025"/>
-                  : <div/>
-              }
-            </div>
-          </Card>
-        )}
-        <Tog label="Assign players" value={form.assignFoursomes} onChange={v=>sf("assignFoursomes",v)} hint="System auto-assigns players by pairing method"/>
+        <Tog label="Assign foursomes" value={form.assignFoursomes} onChange={v=>sf("assignFoursomes",v)} hint="System auto-assigns players by pairing method"/>
         {form.assignFoursomes&&<Sel label="Pairing method" value={form.pairingMethod} onChange={v=>sf("pairingMethod",v)} options={PAIRING_OPTIONS}/>}
         <TA label="Description" value={form.description} onChange={v=>sf("description",v)}/>
         <TA label="Rules" value={form.rules} onChange={v=>sf("rules",v)}/>
@@ -847,8 +790,7 @@ const AdminPage=({group,user,users,games,onUpdateGroup,onSaveGame,onDeleteGame,o
   const [tab,setTab]=useState("games");
   const [showNew,setShowNew]=useState(false);
   const [editingId,setEditingId]=useState(null);
-  const currentRole=getMem(group,user.id)?.role;
-  const superAdmin=currentRole==="superadmin";
+  const superAdmin=isSA(group,user.id);
   const myGames=groupGames(games,group.id);
   const tabs=[{id:"games",label:"Games"},{id:"locations",label:"Locations"},...(superAdmin?[{id:"members",label:"Members & Roles"},{id:"settings",label:"Group Settings"}]:[])];
 
@@ -858,7 +800,7 @@ const AdminPage=({group,user,users,games,onUpdateGroup,onSaveGame,onDeleteGame,o
         <div>
           <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
             <h1 style={{margin:0,fontSize:22,fontWeight:800,color:S.text,letterSpacing:"-0.02em"}}>Admin Panel</h1>
-            <RoleBadge role={currentRole||"player"}/>
+            <RoleBadge role={getMem(group,user.id)?.role||"player"}/>
           </div>
           <p style={{margin:0,fontSize:13,color:S.textMuted}}>{group.name}</p>
         </div>
@@ -876,9 +818,7 @@ const AdminPage=({group,user,users,games,onUpdateGroup,onSaveGame,onDeleteGame,o
           </div>
           {showNew&&<GameForm group={group} adminUser={user} onSave={g=>{onSaveGame(g);setShowNew(false);}} onCancel={()=>setShowNew(false)} onSendRequest={onSendRequest}/>}
           {myGames.length===0&&!showNew&&<Card><p style={{color:S.textMuted,textAlign:"center",margin:0}}>No games yet. Create your first game above.</p></Card>}
-          {myGames.map(g=>{
-            const location=getLoc(group,g.locationId);
-            return (
+          {myGames.map(g=>(
             <div key={g.id}>
               {editingId===g.id?(
                 <GameForm game={g} group={group} adminUser={user} onSave={u=>{onSaveGame(u);setEditingId(null);}} onCancel={()=>setEditingId(null)} onSendRequest={onSendRequest}/>
@@ -888,7 +828,7 @@ const AdminPage=({group,user,users,games,onUpdateGroup,onSaveGame,onDeleteGame,o
                     <div>
                       <div style={{fontSize:16,fontWeight:700,color:S.text}}>{g.day} · {g.date} · {g.time}</div>
                       <div style={{fontSize:12,color:S.textMuted,marginTop:3}}>
-                        {location?.name} · {g.registrations.length}/{g.maxPlayers} players
+                        {getLoc(group,g.locationId)?.name} · {g.registrations.length}/{g.maxPlayers} players
                         {g.recurring&&<span style={{marginLeft:8,color:S.accent}}>↻ Recurring</span>}
                       </div>
                     </div>
@@ -906,11 +846,11 @@ const AdminPage=({group,user,users,games,onUpdateGroup,onSaveGame,onDeleteGame,o
                       })}
                     </div>
                   )}
-                  <TeeTimePanel game={g} location={location} onSimulateResponse={onSimulateResponse}/>
+                  <TeeTimePanel game={g} location={getLoc(group,g.locationId)} onSimulateResponse={onSimulateResponse}/>
                 </Card>
               )}
             </div>
-          )})}
+          ))}
         </>
       )}
 
