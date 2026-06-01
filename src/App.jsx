@@ -90,6 +90,17 @@ const PAIRING_OPTIONS=[
   {value:"none",label:"None — admin assigns manually"},
 ];
 
+const RECURRENCE_OPTIONS=[
+  {value:"weekly",label:"Weekly"},
+  {value:"biweekly",label:"Every 2 weeks"},
+  {value:"monthly",label:"Monthly"},
+  {value:"yearly",label:"Yearly"},
+];
+
+const WEEKDAYS=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+
+const MONTHS=["January","February","March","April","May","June","July","August","September","October","November","December"];
+
 // ── helpers ──────────────────────────────────────────────────────────────────
 const uid=()=>Math.random().toString(36).slice(2,9);
 const fullName=u=>`${u.firstName} ${u.lastName}`;
