@@ -673,9 +673,14 @@ const LocationsTab=({group,onUpdate,superAdmin})=>{
 const GameForm=({game,group,adminUser,onSave,onCancel,onSendRequest})=>{
   const isNew=!game;
   const recurrenceDefault={frequency:"weekly",interval:1,weeklyDays:["Saturday"],monthlyOption:"dayOfMonth",monthlyDay:1,monthlyWeek:"first",monthlyWeekday:"Saturday",yearlyMonth:"January",yearlyDay:1,endType:"never",endAfter:10,endDate:""};
-  const [form,setForm]=useState(game?{...game,recurrence:game.recurrence||recurrenceDefault,recurring:game.recurring||false}:{day:"Saturday",date:"",time:"8:00 AM",locationId:group.locations[0]?.id||"",description:"",rules:"",pairingMethod:"balanced",assignFoursomes:true,maxPlayers:16,recurring:false,recurrence:recurrenceDefault});
+  const defaultForm={day:"Saturday",date:"",time:"8:00 AM",locationId:group.locations[0]?.id||"",description:"",rules:"",pairingMethod:"balanced",assignFoursomes:true,maxPlayers:16,recurring:false,recurrence:recurrenceDefault};
+  const [form,setForm]=useState(isNew?defaultForm:{...game,recurrence:game.recurrence||recurrenceDefault,recurring:game.recurring||false});
   const [saved,setSaved]=useState(false);
   const [showModal,setShowModal]=useState(false);
+  useEffect(()=>{
+    if(game){setForm({...game,recurrence:game.recurrence||recurrenceDefault,recurring:game.recurring||false});}
+  },[game?.id,recurrenceDefault]);
+
   const sf=(k,v)=>setForm(f=>({...f,[k]:v}));
   const sr=(k,v)=>setForm(f=>({...f,recurrence:{...f.recurrence,[k]:v}}));
   const toggleWeeklyDay=day=>{
@@ -881,7 +886,7 @@ const AdminPage=({group,user,users,games,onUpdateGroup,onSaveGame,onDeleteGame,o
             return (
             <div key={g.id}>
               {editingId===g.id?(
-                <GameForm game={g} group={group} adminUser={user} onSave={u=>{onSaveGame(u);setEditingId(null);}} onCancel={()=>setEditingId(null)} onSendRequest={onSendRequest}/>
+                <GameForm key={`edit-${g.id}`} game={g} group={group} adminUser={user} onSave={u=>{onSaveGame(u);setEditingId(null);}} onCancel={()=>setEditingId(null)} onSendRequest={onSendRequest}/>
               ):(
                 <Card style={{marginBottom:16}}>
                   <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
