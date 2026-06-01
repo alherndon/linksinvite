@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 
 const S = {
   bg:"#0d1a0e",surface:"#132016",card:"#1a2b1c",cardBorder:"#2a3f2c",
@@ -49,11 +49,11 @@ const SEED = {
       pairingMethod:"balanced",assignFoursomes:true,maxPlayers:16,recurring:true,
       registrations:["u2","u3","u4"],waitlist:[],
       teeTimeRequests:[
-        {id:"ttr1",sentAt:"May 30, 2025 Â· 9:14 AM",requestedTimes:["8:00 AM","8:10 AM","8:20 AM"],
+        {id:"ttr1",sentAt:"May 30, 2025 · 9:14 AM",requestedTimes:["8:00 AM","8:10 AM","8:20 AM"],
          players:16,toName:"Bobby Stafford",toEmail:"pro@newnancc.com",status:"responded",
          response:{type:"confirmed",confirmedTime:"8:00 AM",alternateTimes:null,
            note:"Confirmed for Saturday June 7. Please arrive by 7:30 AM for check-in.",
-           respondedAt:"May 30, 2025 Â· 11:42 AM"}},
+           respondedAt:"May 30, 2025 · 11:42 AM"}},
       ],
     },
     {
@@ -70,7 +70,7 @@ const SEED = {
       pairingMethod:"system",assignFoursomes:true,maxPlayers:20,recurring:true,
       registrations:["u5","u1"],waitlist:[],
       teeTimeRequests:[
-        {id:"ttr2",sentAt:"May 29, 2025 Â· 2:00 PM",requestedTimes:["11:00 AM","11:10 AM","11:20 AM","11:30 AM"],
+        {id:"ttr2",sentAt:"May 29, 2025 · 2:00 PM",requestedTimes:["11:00 AM","11:10 AM","11:20 AM","11:30 AM"],
          players:20,toName:"Dana Whitmore",toEmail:"teetimes@eastlake.com",status:"pending",response:null},
       ],
     },
@@ -78,19 +78,19 @@ const SEED = {
 };
 
 const WEATHER={
-  l1:[{day:"Fri",icon:"â˜€ï¸",hi:84,lo:67,rain:5,rating:"Excellent"},{day:"Sat",icon:"â›…",hi:79,lo:65,rain:22,rating:"Good"},{day:"Sun",icon:"ðŸŒ¦",hi:74,lo:63,rain:40,rating:"Fair"}],
-  l2:[{day:"Fri",icon:"â›…",hi:82,lo:65,rain:10,rating:"Good"},{day:"Sat",icon:"â˜€ï¸",hi:85,lo:68,rain:3,rating:"Excellent"},{day:"Sun",icon:"ðŸŒ§",hi:71,lo:60,rain:70,rating:"Poor"}],
-  l3:[{day:"Fri",icon:"â˜€ï¸",hi:86,lo:70,rain:2,rating:"Excellent"},{day:"Sat",icon:"â˜€ï¸",hi:88,lo:72,rain:5,rating:"Excellent"},{day:"Sun",icon:"â›…",hi:80,lo:66,rain:18,rating:"Good"}],
+  l1:[{day:"Fri",icon:"☀️",hi:84,lo:67,rain:5,rating:"Excellent"},{day:"Sat",icon:"⛅",hi:79,lo:65,rain:22,rating:"Good"},{day:"Sun",icon:"🌦",hi:74,lo:63,rain:40,rating:"Fair"}],
+  l2:[{day:"Fri",icon:"⛅",hi:82,lo:65,rain:10,rating:"Good"},{day:"Sat",icon:"☀️",hi:85,lo:68,rain:3,rating:"Excellent"},{day:"Sun",icon:"🌧",hi:71,lo:60,rain:70,rating:"Poor"}],
+  l3:[{day:"Fri",icon:"☀️",hi:86,lo:70,rain:2,rating:"Excellent"},{day:"Sat",icon:"☀️",hi:88,lo:72,rain:5,rating:"Excellent"},{day:"Sun",icon:"⛅",hi:80,lo:66,rain:18,rating:"Good"}],
 };
 
 const PAIRING_OPTIONS=[
-  {value:"balanced",label:"Balanced â€” matched by handicap"},
-  {value:"blindDraw",label:"Blind Draw â€” random assignment"},
-  {value:"system",label:"System Pairing â€” GHIN-based"},
-  {value:"none",label:"None â€” admin assigns manually"},
+  {value:"balanced",label:"Balanced — matched by handicap"},
+  {value:"blindDraw",label:"Blind Draw — random assignment"},
+  {value:"system",label:"System Pairing — GHIN-based"},
+  {value:"none",label:"None — admin assigns manually"},
 ];
 
-// â”€â”€ helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── helpers ──────────────────────────────────────────────────────────────────
 const uid=()=>Math.random().toString(36).slice(2,9);
 const fullName=u=>`${u.firstName} ${u.lastName}`;
 const initials=u=>`${u.firstName[0]}${u.lastName[0]}`.toUpperCase();
@@ -101,7 +101,7 @@ const getUser=(users,id)=>users.find(u=>u.id===id);
 const getLoc=(group,id)=>group.locations.find(l=>l.id===id);
 const groupGames=(games,gid)=>games.filter(g=>g.groupId===gid);
 
-// â”€â”€ shared UI â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── shared UI ─────────────────────────────────────────────────────────────────
 const Badge=({children,color=S.accent,bg=S.accentSubtle})=>(
   <span style={{display:"inline-flex",alignItems:"center",padding:"2px 10px",borderRadius:20,fontSize:11,fontWeight:600,letterSpacing:"0.04em",color,background:bg,border:`1px solid ${color}22`,textTransform:"uppercase"}}>{children}</span>
 );
@@ -163,7 +163,7 @@ const TA=({label,value,onChange,rows=3})=>(
   </div>
 );
 
-// â”€â”€ AUTH â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── AUTH ──────────────────────────────────────────────────────────────────────
 const AuthPage=({onAuth,onSetDb})=>{
   const [mode,setMode]=useState("login");
   const [step,setStep]=useState(1);
@@ -206,7 +206,7 @@ const AuthPage=({onAuth,onSetDb})=>{
     <div style={{minHeight:"100vh",background:S.bg,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
       <div style={{width:"100%",maxWidth:440}}>
         <div style={{textAlign:"center",marginBottom:32}}>
-          <div style={{width:56,height:56,borderRadius:16,background:S.accent,display:"flex",alignItems:"center",justifyContent:"center",fontSize:28,margin:"0 auto 12px"}}>â›³</div>
+          <div style={{width:56,height:56,borderRadius:16,background:S.accent,display:"flex",alignItems:"center",justifyContent:"center",fontSize:28,margin:"0 auto 12px"}}>⛳</div>
           <div style={{fontSize:24,fontWeight:800,color:S.text,letterSpacing:"-0.03em"}}>LinksInvite</div>
           <div style={{fontSize:13,color:S.textMuted,marginTop:4}}>Weekly Golf Coordinator</div>
         </div>
@@ -220,7 +220,7 @@ const AuthPage=({onAuth,onSetDb})=>{
           {mode==="login"&&(
             <div>
               <Inp label="Email" value={f.email} onChange={sf("email")} placeholder="you@example.com" type="email"/>
-              <Inp label="Password" value={f.password} onChange={sf("password")} placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢" type="password"/>
+              <Inp label="Password" value={f.password} onChange={sf("password")} placeholder="••••••••" type="password"/>
               <Btn full onClick={()=>onAuth("u1")}>Sign in</Btn>
               <p style={{textAlign:"center",fontSize:12,color:S.textDim,marginTop:16}}>Demo: signs in as James Harrington (group owner)</p>
             </div>
@@ -228,7 +228,7 @@ const AuthPage=({onAuth,onSetDb})=>{
 
           {mode==="register"&&step===1&&(
             <div>
-              <div style={{fontSize:12,color:S.textMuted,marginBottom:16}}>Step 1 of 2 â€” Your account</div>
+              <div style={{fontSize:12,color:S.textMuted,marginBottom:16}}>Step 1 of 2 — Your account</div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
                 <Inp label="First name" value={f.firstName} onChange={sf("firstName")} required placeholder="James" error={errors.firstName}/>
                 <Inp label="Last name" value={f.lastName} onChange={sf("lastName")} required placeholder="Harrington" error={errors.lastName}/>
@@ -239,17 +239,17 @@ const AuthPage=({onAuth,onSetDb})=>{
                 <Inp label="Handicap" value={f.handicap} onChange={sf("handicap")} required placeholder="15.4" type="number" error={errors.handicap}/>
                 <Inp label="GHIN (optional)" value={f.ghin} onChange={sf("ghin")} placeholder="7-digit ID"/>
               </div>
-              <Btn full onClick={()=>{const e=v1();if(Object.keys(e).length){setErrors(e);return;}setErrors({});setStep(2);}}>Continue â†’</Btn>
+              <Btn full onClick={()=>{const e=v1();if(Object.keys(e).length){setErrors(e);return;}setErrors({});setStep(2);}}>Continue →</Btn>
             </div>
           )}
 
           {mode==="register"&&step===2&&(
             <div>
-              <div style={{fontSize:12,color:S.textMuted,marginBottom:16}}>Step 2 of 2 â€” Your group</div>
+              <div style={{fontSize:12,color:S.textMuted,marginBottom:16}}>Step 2 of 2 — Your group</div>
               <div style={{display:"flex",gap:8,marginBottom:16}}>
                 {["create","join"].map(i=>(
                   <button key={i} onClick={()=>setIntent(i)} style={{flex:1,padding:"9px 0",borderRadius:8,border:`1px solid ${intent===i?S.accent:S.cardBorder}`,background:intent===i?S.accentSubtle:"transparent",color:intent===i?S.accent:S.textMuted,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>
-                    {i==="create"?"âž• Create group":"ðŸ”— Join group"}
+                    {i==="create"?"➕ Create group":"🔗 Join group"}
                   </button>
                 ))}
               </div>
@@ -267,7 +267,7 @@ const AuthPage=({onAuth,onSetDb})=>{
                 <Inp label="Group name or invite code" value={joinCode} onChange={setJoinCode} placeholder="Search by group name" error={errors.join} hint="Ask your admin for the code"/>
               )}
               <div style={{display:"flex",gap:8,marginTop:8}}>
-                <Btn variant="ghost" onClick={()=>setStep(1)}>â† Back</Btn>
+                <Btn variant="ghost" onClick={()=>setStep(1)}>← Back</Btn>
                 <Btn full onClick={()=>finish(SEED,v=>{onSetDb(v);})}>
                   {intent==="create"?"Create group & sign in":"Join & sign in"}
                 </Btn>
@@ -280,14 +280,14 @@ const AuthPage=({onAuth,onSetDb})=>{
   );
 };
 
-// â”€â”€ NAV â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── NAV ───────────────────────────────────────────────────────────────────────
 const TopNav=({page,setPage,user,group,groups,onGroupChange,onSignOut})=>{
   const [open,setOpen]=useState(false);
   const mem=group?getMem(group,user.id):null;
   return (
     <nav style={{background:S.surface,borderBottom:`1px solid ${S.cardBorder}`,padding:"0 20px",display:"flex",alignItems:"center",height:56,position:"sticky",top:0,zIndex:100,gap:12}}>
       <div style={{display:"flex",alignItems:"center",gap:8,marginRight:"auto"}}>
-        <div style={{width:32,height:32,borderRadius:8,background:S.accent,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16}}>â›³</div>
+        <div style={{width:32,height:32,borderRadius:8,background:S.accent,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16}}>⛳</div>
         <div>
           <div style={{fontSize:15,fontWeight:700,color:S.text,letterSpacing:"-0.02em"}}>LinksInvite</div>
           <div style={{fontSize:10,color:S.textMuted,letterSpacing:"0.05em",marginTop:-2}}>WEEKLY GOLF COORDINATOR</div>
@@ -322,7 +322,7 @@ const TopNav=({page,setPage,user,group,groups,onGroupChange,onSignOut})=>{
   );
 };
 
-// â”€â”€ SPLASH â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── SPLASH ────────────────────────────────────────────────────────────────────
 const WeatherWidget=({locationId})=>{
   const wx=(WEATHER[locationId]||WEATHER.l1);
   return (
@@ -333,7 +333,7 @@ const WeatherWidget=({locationId})=>{
           <div key={w.day} style={{background:S.surface,borderRadius:10,padding:"14px 12px",textAlign:"center",border:`1px solid ${w.day==="Sat"?S.accent+"55":S.cardBorder}`}}>
             <div style={{fontSize:11,fontWeight:700,color:w.day==="Sat"?S.accent:S.textMuted,letterSpacing:"0.08em",marginBottom:6}}>{w.day}</div>
             <div style={{fontSize:26,marginBottom:6}}>{w.icon}</div>
-            <div style={{fontSize:13,fontWeight:600,color:S.text,marginBottom:3}}>{w.hi}Â° / {w.lo}Â°</div>
+            <div style={{fontSize:13,fontWeight:600,color:S.text,marginBottom:3}}>{w.hi}° / {w.lo}°</div>
             <div style={{fontSize:11,color:S.textMuted,marginBottom:8}}>{w.rain}% rain</div>
             <Badge color={w.rating==="Excellent"?S.accent:w.rating==="Good"?S.gold:w.rating==="Fair"?S.warning:S.danger} bg={w.rating==="Excellent"?S.accentSubtle:w.rating==="Good"?"#2a2000":w.rating==="Fair"?S.warningBg:S.dangerBg}>{w.rating}</Badge>
           </div>
@@ -371,8 +371,8 @@ const GameCard=({game,group,user,users,onRegister})=>{
             {isWait&&<Badge color={S.warning} bg={S.warningBg}>Waitlisted</Badge>}
             {isFull&&!isReg&&!isWait&&<Badge color={S.warning} bg={S.warningBg}>Full</Badge>}
           </div>
-          <div style={{fontSize:13,color:S.textMuted}}>{game.date} Â· {game.time}</div>
-          {loc&&<div style={{fontSize:12,color:S.textDim,marginTop:2}}>ðŸ“ {loc.name}</div>}
+          <div style={{fontSize:13,color:S.textMuted}}>{game.date} · {game.time}</div>
+          {loc&&<div style={{fontSize:12,color:S.textDim,marginTop:2}}>📍 {loc.name}</div>}
         </div>
         <Btn variant={isReg||isWait?"danger":isFull?"secondary":"primary"} onClick={()=>onRegister(game.id)} small>
           {isReg?"Unregister":isWait?"Leave Waitlist":isFull?"Join Waitlist":"Register"}
@@ -389,11 +389,11 @@ const GameCard=({game,group,user,users,onRegister})=>{
       <p style={{margin:"0 0 14px",fontSize:13,color:S.textMuted,lineHeight:1.6}}>{game.description}</p>
       <div style={{borderTop:`1px solid ${S.cardBorder}`,paddingTop:14}}>
         <SecTitle>Who's Playing ({game.registrations.length}/{game.maxPlayers})</SecTitle>
-        {regUsers.length===0?<p style={{margin:"0 0 8px",fontSize:13,color:S.textDim}}>No players yet â€” be the first to register.</p>:regUsers.map(u=><PlayerRow key={u.id} user={u}/>)}
+        {regUsers.length===0?<p style={{margin:"0 0 8px",fontSize:13,color:S.textDim}}>No players yet — be the first to register.</p>:regUsers.map(u=><PlayerRow key={u.id} user={u}/>)}
       </div>
       {waitUsers.length>0&&(<div style={{marginTop:12}}><SecTitle>Waitlist</SecTitle>{waitUsers.map(u=><PlayerRow key={u.id} user={u} isWaitlist/>)}</div>)}
       <button onClick={()=>setExpanded(!expanded)} style={{background:"none",border:"none",color:S.accent,fontSize:12,fontWeight:600,cursor:"pointer",padding:"12px 0 4px",fontFamily:"inherit",display:"block",letterSpacing:"0.03em"}}>
-        {expanded?"â–² Hide rules":"â–¼ View rules"}
+        {expanded?"▲ Hide rules":"▼ View rules"}
       </button>
       {expanded&&(
         <div style={{background:S.surface,borderRadius:10,padding:"12px 14px",marginTop:6}}>
@@ -420,7 +420,7 @@ const SplashPage=({group,user,users,games,onRegister})=>{
   );
 };
 
-// â”€â”€ TEE TIME EMAIL MODAL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── TEE TIME EMAIL MODAL ──────────────────────────────────────────────────────
 const TeeTimeModal=({game,location,adminUser,group,onSend,onClose})=>{
   const contact=location?.teeTimeContact||{};
   const foursomes=Math.ceil(game.maxPlayers/4);
@@ -446,7 +446,7 @@ const TeeTimeModal=({game,location,adminUser,group,onSend,onClose})=>{
   const [tab,setTab]=useState("compose");
   const [sent,setSent]=useState(false);
   const replyLink=`https://linksinvite.com/respond/${game.id}`;
-  const preview=`Hi ${toName||"[Contact]"},\n\nI'm reaching out to reserve tee times for ${group.name}.\n\nGame details:\n  Date: ${game.date} (${game.day})\n  Players: ${game.maxPlayers} (${foursomes} foursomes)\n  Requested times: ${times}\n${note?`\nNotes: ${note}\n`:""}\nPlease confirm or suggest alternates:\n  â†’ ${replyLink}\n\nThank you,\n${fullName(adminUser)}\n${adminUser.email} Â· ${adminUser.phone}`;
+  const preview=`Hi ${toName||"[Contact]"},\n\nI'm reaching out to reserve tee times for ${group.name}.\n\nGame details:\n  Date: ${game.date} (${game.day})\n  Players: ${game.maxPlayers} (${foursomes} foursomes)\n  Requested times: ${times}\n${note?`\nNotes: ${note}\n`:""}\nPlease confirm or suggest alternates:\n  → ${replyLink}\n\nThank you,\n${fullName(adminUser)}\n${adminUser.email} · ${adminUser.phone}`;
 
   const handleSend=()=>{
     onSend({id:"ttr"+uid(),sentAt:new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit"}),requestedTimes:times.split(",").map(t=>t.trim()).filter(Boolean),players:game.maxPlayers,toName,toEmail,status:"pending",response:null});
@@ -459,13 +459,13 @@ const TeeTimeModal=({game,location,adminUser,group,onSend,onClose})=>{
         <div style={{padding:"18px 22px 0",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
           <div>
             <div style={{fontSize:16,fontWeight:700,color:S.text}}>Request Tee Times</div>
-            <div style={{fontSize:12,color:S.textMuted,marginTop:2}}>{location?.name} Â· {game.date}</div>
+            <div style={{fontSize:12,color:S.textMuted,marginTop:2}}>{location?.name} · {game.date}</div>
           </div>
-          <button onClick={onClose} style={{background:"none",border:"none",color:S.textMuted,fontSize:20,cursor:"pointer",padding:"0 4px"}}>âœ•</button>
+          <button onClick={onClose} style={{background:"none",border:"none",color:S.textMuted,fontSize:20,cursor:"pointer",padding:"0 4px"}}>✕</button>
         </div>
         {sent?(
           <div style={{padding:"32px 22px",textAlign:"center"}}>
-            <div style={{fontSize:40,marginBottom:12}}>ðŸ“§</div>
+            <div style={{fontSize:40,marginBottom:12}}>📧</div>
             <div style={{fontSize:16,fontWeight:700,color:S.accent,marginBottom:8}}>Email queued</div>
             <div style={{fontSize:13,color:S.textMuted,lineHeight:1.6}}>Request sent to <strong style={{color:S.text}}>{toEmail}</strong>.<br/>You'll be notified when they respond.</div>
             <Btn onClick={onClose} style={{marginTop:20}}>Done</Btn>
@@ -481,7 +481,7 @@ const TeeTimeModal=({game,location,adminUser,group,onSend,onClose})=>{
               <>
                 {!contact.email&&(
                   <div style={{background:S.warningBg,border:`1px solid ${S.warning}44`,borderRadius:8,padding:"10px 14px",marginBottom:14,fontSize:12,color:S.warning}}>
-                    âš  No tee time contact saved for this location. Add one in the Locations tab.
+                    ⚠ No tee time contact saved for this location. Add one in the Locations tab.
                   </div>
                 )}
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
@@ -490,12 +490,12 @@ const TeeTimeModal=({game,location,adminUser,group,onSend,onClose})=>{
                 </div>
                 <Divider/>
                 <div style={{background:S.surface,borderRadius:8,padding:"10px 12px",marginBottom:14,fontSize:12,color:S.textMuted}}>
-                  {foursomes} foursome{foursomes!==1?"s":""} Â· {game.maxPlayers} players Â· starting {game.time}
+                  {foursomes} foursome{foursomes!==1?"s":""} · {game.maxPlayers} players · starting {game.time}
                 </div>
-                <Inp label="Requested tee times (comma-separated)" value={times} onChange={setTimes} hint="One per foursome â€” edit as needed"/>
+                <Inp label="Requested tee times (comma-separated)" value={times} onChange={setTimes} hint="One per foursome — edit as needed"/>
                 <TA label="Additional notes (optional)" value={note} onChange={setNote} rows={2}/>
                 <div style={{background:S.infoBg,border:`1px solid ${S.info}33`,borderRadius:8,padding:"10px 14px",fontSize:12,color:S.info,marginBottom:18,lineHeight:1.6}}>
-                  ðŸ“© The email includes a <strong>one-click response link</strong>. The contact can confirm or offer alternates â€” response goes straight to your admin inbox.
+                  📩 The email includes a <strong>one-click response link</strong>. The contact can confirm or offer alternates — response goes straight to your admin inbox.
                 </div>
                 <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
                   <Btn variant="ghost" small onClick={()=>setTab("preview")}>Preview</Btn>
@@ -507,14 +507,14 @@ const TeeTimeModal=({game,location,adminUser,group,onSend,onClose})=>{
               <>
                 <div style={{background:S.surface,borderRadius:10,padding:"16px 18px",fontFamily:"monospace",fontSize:12,color:S.text,lineHeight:1.8,whiteSpace:"pre-wrap",wordBreak:"break-word"}}>
                   <div style={{marginBottom:12,paddingBottom:12,borderBottom:`1px solid ${S.cardBorder}`}}>
-                    <span style={{color:S.textMuted}}>To: </span>{toName?`${toName} <${toEmail}>`:toEmail||"â€”"}{"\n"}
+                    <span style={{color:S.textMuted}}>To: </span>{toName?`${toName} <${toEmail}>`:toEmail||"—"}{"\n"}
                     <span style={{color:S.textMuted}}>From: </span>{fullName(adminUser)} &lt;{adminUser.email}&gt;{"\n"}
-                    <span style={{color:S.textMuted}}>Subject: </span>Tee Time Request â€” {group.name} Â· {game.date}
+                    <span style={{color:S.textMuted}}>Subject: </span>Tee Time Request — {group.name} · {game.date}
                   </div>
                   <span style={{color:S.textMuted,fontFamily:"inherit",fontSize:11}}>{preview}</span>
                 </div>
                 <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:14}}>
-                  <Btn variant="ghost" small onClick={()=>setTab("compose")}>â† Edit</Btn>
+                  <Btn variant="ghost" small onClick={()=>setTab("compose")}>← Edit</Btn>
                   <Btn small onClick={handleSend} disabled={!toEmail.includes("@")}>Send Request</Btn>
                 </div>
               </>
@@ -526,7 +526,7 @@ const TeeTimeModal=({game,location,adminUser,group,onSend,onClose})=>{
   );
 };
 
-// â”€â”€ TEE TIME REQUESTS PANEL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── TEE TIME REQUESTS PANEL ───────────────────────────────────────────────────
 const TeeTimePanel=({game,location,onSimulateResponse})=>{
   const reqs=game.teeTimeRequests||[];
   if(reqs.length===0)return null;
@@ -539,7 +539,7 @@ const TeeTimePanel=({game,location,onSimulateResponse})=>{
             <div>
               <div style={{fontSize:13,fontWeight:600,color:S.text}}>
                 Sent to {req.toName||location?.teeTimeContact?.name||"Pro Shop"}
-                {req.toEmail&&<span style={{fontWeight:400,color:S.textMuted}}> Â· {req.toEmail}</span>}
+                {req.toEmail&&<span style={{fontWeight:400,color:S.textMuted}}> · {req.toEmail}</span>}
               </div>
               <div style={{fontSize:11,color:S.textDim,marginTop:2}}>{req.sentAt}</div>
             </div>
@@ -548,12 +548,12 @@ const TeeTimePanel=({game,location,onSimulateResponse})=>{
             </Badge>
           </div>
           <div style={{fontSize:12,color:S.textMuted,marginBottom:req.response?10:0}}>
-            Requested: {req.requestedTimes?.join(" Â· ")} Â· {req.players} players
+            Requested: {req.requestedTimes?.join(" · ")} · {req.players} players
           </div>
           {req.response&&(
             <div style={{background:req.response.type==="confirmed"?S.accentSubtle:S.warningBg,border:`1px solid ${req.response.type==="confirmed"?S.accent+"44":S.warning+"44"}`,borderRadius:8,padding:"10px 12px"}}>
               <div style={{fontSize:12,fontWeight:600,color:req.response.type==="confirmed"?S.accent:S.warning,marginBottom:4}}>
-                {req.response.type==="confirmed"?"âœ“ Confirmed":"â†» Alternate times offered"}
+                {req.response.type==="confirmed"?"✓ Confirmed":"↻ Alternate times offered"}
                 <span style={{fontWeight:400,color:S.textMuted,marginLeft:8}}>{req.response.respondedAt}</span>
               </div>
               {req.response.confirmedTime&&<div style={{fontSize:13,color:S.text,marginBottom:4}}>Tee time: <strong>{req.response.confirmedTime}</strong></div>}
@@ -563,7 +563,7 @@ const TeeTimePanel=({game,location,onSimulateResponse})=>{
           )}
           {req.status==="pending"&&(
             <button onClick={()=>onSimulateResponse(game.id,req.id)} style={{marginTop:8,background:"none",border:`1px dashed ${S.textDim}`,borderRadius:6,padding:"4px 10px",fontSize:11,color:S.textDim,cursor:"pointer",fontFamily:"inherit"}}>
-              â†» Simulate response (demo)
+              ↻ Simulate response (demo)
             </button>
           )}
         </div>
@@ -572,7 +572,7 @@ const TeeTimePanel=({game,location,onSimulateResponse})=>{
   );
 };
 
-// â”€â”€ LOCATIONS TAB â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── LOCATIONS TAB ─────────────────────────────────────────────────────────────
 const ContactForm=({location,onSave,onCancel})=>{
   const [c,setC]=useState(location.teeTimeContact||{name:"",email:"",phone:""});
   return (
@@ -634,7 +634,7 @@ const LocationsTab=({group,onUpdate,superAdmin})=>{
         return (
           <div key={l.id} style={{background:S.surface,borderRadius:12,marginBottom:10,overflow:"hidden"}}>
             <div style={{display:"flex",alignItems:"center",gap:12,padding:"14px 16px"}}>
-              <div style={{fontSize:20}}>ðŸ“</div>
+              <div style={{fontSize:20}}>📍</div>
               <div style={{flex:1}}>
                 <div style={{fontSize:14,fontWeight:600,color:S.text}}>{l.name}</div>
                 <div style={{fontSize:12,color:S.textMuted}}>{l.address||"No address saved"}</div>
@@ -654,7 +654,7 @@ const LocationsTab=({group,onUpdate,superAdmin})=>{
                     {contact.phone&&<span style={{fontSize:12,color:S.textMuted}}>{contact.phone}</span>}
                   </div>
                 ):(
-                  <span style={{fontSize:12,color:S.textDim,fontStyle:"italic"}}>None saved â€” add one to enable tee time requests</span>
+                  <span style={{fontSize:12,color:S.textDim,fontStyle:"italic"}}>None saved — add one to enable tee time requests</span>
                 )}
               </div>
             )}
@@ -668,7 +668,7 @@ const LocationsTab=({group,onUpdate,superAdmin})=>{
   );
 };
 
-// â”€â”€ GAME FORM â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── GAME FORM ─────────────────────────────────────────────────────────────────
 const GameForm=({game,group,adminUser,onSave,onCancel,onSendRequest})=>{
   const isNew=!game;
   const [form,setForm]=useState(game||{day:"Saturday",date:"",time:"8:00 AM",locationId:group.locations[0]?.id||"",description:"",rules:"",pairingMethod:"balanced",assignFoursomes:true,maxPlayers:16,recurring:false});
@@ -694,10 +694,10 @@ const GameForm=({game,group,adminUser,onSave,onCancel,onSendRequest})=>{
       )}
       <Card style={{marginBottom:20}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:18}}>
-          <h2 style={{margin:0,fontSize:17,fontWeight:700,color:S.text}}>{isNew?"New Game":game.day+" â€” Edit"}</h2>
+          <h2 style={{margin:0,fontSize:17,fontWeight:700,color:S.text}}>{isNew?"New Game":game.day+" — Edit"}</h2>
           <div style={{display:"flex",gap:8}}>
             {onCancel&&<Btn variant="ghost" small onClick={onCancel}>Cancel</Btn>}
-            <Btn variant={saved?"ghost":"primary"} small onClick={handleSave}>{saved?"âœ“ Saved":"Save Game"}</Btn>
+            <Btn variant={saved?"ghost":"primary"} small onClick={handleSave}>{saved?"✓ Saved":"Save Game"}</Btn>
           </div>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
@@ -718,15 +718,15 @@ const GameForm=({game,group,adminUser,onSave,onCancel,onSendRequest})=>{
                 {contact.phone&&<span style={{color:S.textMuted}}>{contact.phone}</span>}
               </div>
             ):(
-              <div style={{fontSize:12,color:S.warning}}>No contact saved for {selLoc?.name||"this location"} â€” add one in the Locations tab.</div>
+              <div style={{fontSize:12,color:S.warning}}>No contact saved for {selLoc?.name||"this location"} — add one in the Locations tab.</div>
             )}
             {lastReq&&(
               <div style={{fontSize:11,color:S.textDim,marginTop:3}}>
-                Last request: {lastReq.sentAt} Â· <span style={{color:lastReq.status==="responded"?S.accent:S.warning}}>{lastReq.status==="responded"?"Response received":"Awaiting reply"}</span>
+                Last request: {lastReq.sentAt} · <span style={{color:lastReq.status==="responded"?S.accent:S.warning}}>{lastReq.status==="responded"?"Response received":"Awaiting reply"}</span>
               </div>
             )}
           </div>
-          {!isNew&&hasContact&&<Btn variant="info" small onClick={()=>setShowModal(true)}>ðŸ“§ Request Tee Times</Btn>}
+          {!isNew&&hasContact&&<Btn variant="info" small onClick={()=>setShowModal(true)}>📧 Request Tee Times</Btn>}
           {!isNew&&!hasContact&&<span style={{fontSize:11,color:S.textDim}}>Save a contact to enable requests</span>}
         </div>
 
@@ -744,7 +744,7 @@ const GameForm=({game,group,adminUser,onSave,onCancel,onSendRequest})=>{
   );
 };
 
-// â”€â”€ MEMBERS TAB â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── MEMBERS TAB ───────────────────────────────────────────────────────────────
 const MembersTab=({group,users,currentUserId,onUpdate,superAdmin})=>{
   const [inviteEmail,setInviteEmail]=useState("");
   return (
@@ -768,7 +768,7 @@ const MembersTab=({group,users,currentUserId,onUpdate,superAdmin})=>{
             <Avatar user={u} size={36}/>
             <div style={{flex:1}}>
               <div style={{fontSize:14,fontWeight:500,color:S.text}}>{fullName(u)}{isSelf&&<span style={{fontSize:11,color:S.textDim,marginLeft:6}}>(you)</span>}</div>
-              <div style={{fontSize:12,color:S.textMuted}}>{u.email} Â· HCP {u.handicap}</div>
+              <div style={{fontSize:12,color:S.textMuted}}>{u.email} · HCP {u.handicap}</div>
             </div>
             {superAdmin&&!isSelf?(
               <select value={m.role} onChange={e=>onUpdate({...group,memberships:group.memberships.map(x=>x.userId===m.userId?{...x,role:e.target.value}:x)})} style={{background:S.card,border:`1px solid ${S.cardBorder}`,borderRadius:6,padding:"4px 8px",color:S.text,fontSize:12,fontFamily:"inherit",cursor:"pointer"}}>
@@ -785,7 +785,7 @@ const MembersTab=({group,users,currentUserId,onUpdate,superAdmin})=>{
   );
 };
 
-// â”€â”€ ADMIN PAGE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── ADMIN PAGE ────────────────────────────────────────────────────────────────
 const AdminPage=({group,user,users,games,onUpdateGroup,onSaveGame,onDeleteGame,onSendRequest,onSimulateResponse})=>{
   const [tab,setTab]=useState("games");
   const [showNew,setShowNew]=useState(false);
@@ -826,10 +826,10 @@ const AdminPage=({group,user,users,games,onUpdateGroup,onSaveGame,onDeleteGame,o
                 <Card style={{marginBottom:16}}>
                   <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
                     <div>
-                      <div style={{fontSize:16,fontWeight:700,color:S.text}}>{g.day} Â· {g.date} Â· {g.time}</div>
+                      <div style={{fontSize:16,fontWeight:700,color:S.text}}>{g.day} · {g.date} · {g.time}</div>
                       <div style={{fontSize:12,color:S.textMuted,marginTop:3}}>
-                        {getLoc(group,g.locationId)?.name} Â· {g.registrations.length}/{g.maxPlayers} players
-                        {g.recurring&&<span style={{marginLeft:8,color:S.accent}}>â†» Recurring</span>}
+                        {getLoc(group,g.locationId)?.name} · {g.registrations.length}/{g.maxPlayers} players
+                        {g.recurring&&<span style={{marginLeft:8,color:S.accent}}>↻ Recurring</span>}
                       </div>
                     </div>
                     <div style={{display:"flex",gap:8}}>
@@ -875,13 +875,13 @@ const GroupSettings=({group,onUpdate})=>{
       <Inp label="Group name" value={name} onChange={setName} required/>
       <Inp label="Description" value={desc} onChange={setDesc} placeholder="What's this group about?"/>
       <div style={{display:"flex",justifyContent:"flex-end"}}>
-        <Btn onClick={()=>{onUpdate({...group,name,description:desc});setSaved(true);setTimeout(()=>setSaved(false),2000);}} variant={saved?"ghost":"primary"}>{saved?"âœ“ Saved":"Save Settings"}</Btn>
+        <Btn onClick={()=>{onUpdate({...group,name,description:desc});setSaved(true);setTimeout(()=>setSaved(false),2000);}} variant={saved?"ghost":"primary"}>{saved?"✓ Saved":"Save Settings"}</Btn>
       </div>
     </>
   );
 };
 
-// â”€â”€ PROFILE PAGE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── PROFILE PAGE ──────────────────────────────────────────────────────────────
 const ProfilePage=({user,groups,games,onUpdateUser})=>{
   const [p,setP]=useState({...user,handicap:String(user.handicap)});
   const [saved,setSaved]=useState(false);
@@ -901,7 +901,7 @@ const ProfilePage=({user,groups,games,onUpdateUser})=>{
           </div>
           <div>
             <div style={{fontSize:18,fontWeight:700,color:S.text}}>{p.firstName||"First"} {p.lastName||"Last"}</div>
-            <div style={{fontSize:13,color:S.textMuted,marginTop:2}}>HCP <strong style={{color:S.accent}}>{p.handicap||"â€”"}</strong>{p.ghin&&<span style={{marginLeft:12}}>GHIN {p.ghin}</span>}</div>
+            <div style={{fontSize:13,color:S.textMuted,marginTop:2}}>HCP <strong style={{color:S.accent}}>{p.handicap||"—"}</strong>{p.ghin&&<span style={{marginLeft:12}}>GHIN {p.ghin}</span>}</div>
             <div style={{display:"flex",gap:6,marginTop:6,flexWrap:"wrap"}}>
               {myGroups.map(g=>{const m=getMem(g,user.id);return(<span key={g.id} style={{fontSize:11,color:S.textDim,display:"flex",alignItems:"center",gap:4}}>{g.name} <RoleBadge role={m?.role||"player"}/></span>);})}
             </div>
@@ -923,14 +923,14 @@ const ProfilePage=({user,groups,games,onUpdateUser})=>{
           <Inp label="GHIN (optional)" value={p.ghin||""} onChange={sp("ghin")} placeholder="7-digit number" hint="Enables system pairing"/>
         </div>
         <div style={{display:"flex",justifyContent:"flex-end",marginTop:8}}>
-          <Btn onClick={()=>{const e=validate();if(Object.keys(e).length){setErrors(e);return;}onUpdateUser({...p,handicap:+p.handicap});setSaved(true);setTimeout(()=>setSaved(false),2500);}} variant={saved?"ghost":"primary"}>{saved?"âœ“ Saved":"Save Profile"}</Btn>
+          <Btn onClick={()=>{const e=validate();if(Object.keys(e).length){setErrors(e);return;}onUpdateUser({...p,handicap:+p.handicap});setSaved(true);setTimeout(()=>setSaved(false),2500);}} variant={saved?"ghost":"primary"}>{saved?"✓ Saved":"Save Profile"}</Btn>
         </div>
       </Card>
       <Card style={{marginTop:20}}>
         <SecTitle>My Groups</SecTitle>
         {myGroups.length===0?<p style={{color:S.textMuted,fontSize:13,margin:0}}>You haven't joined any groups yet.</p>:myGroups.map(g=>{
           const m=getMem(g,user.id);
-          return(<div key={g.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 0",borderBottom:`1px solid ${S.cardBorder}33`}}><div><div style={{fontSize:14,fontWeight:600,color:S.text}}>{g.name}</div><div style={{fontSize:12,color:S.textMuted}}>{g.memberships.length} members Â· {g.locations.length} location{g.locations.length!==1?"s":""}</div></div><RoleBadge role={m?.role||"player"}/></div>);
+          return(<div key={g.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 0",borderBottom:`1px solid ${S.cardBorder}33`}}><div><div style={{fontSize:14,fontWeight:600,color:S.text}}>{g.name}</div><div style={{fontSize:12,color:S.textMuted}}>{g.memberships.length} members · {g.locations.length} location{g.locations.length!==1?"s":""}</div></div><RoleBadge role={m?.role||"player"}/></div>);
         })}
       </Card>
       {myGames.length>0&&(
@@ -938,7 +938,7 @@ const ProfilePage=({user,groups,games,onUpdateUser})=>{
           <SecTitle>Upcoming Games</SecTitle>
           {myGames.map(g=>{
             const grp=groups.find(gr=>gr.id===g.groupId);
-            return(<div key={g.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 0",borderBottom:`1px solid ${S.cardBorder}33`}}><div><div style={{fontSize:14,fontWeight:600,color:S.text}}>{g.day} Â· {g.date}</div><div style={{fontSize:12,color:S.textMuted}}>{g.time} Â· {grp?.name}</div></div><Badge>Registered</Badge></div>);
+            return(<div key={g.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 0",borderBottom:`1px solid ${S.cardBorder}33`}}><div><div style={{fontSize:14,fontWeight:600,color:S.text}}>{g.day} · {g.date}</div><div style={{fontSize:12,color:S.textMuted}}>{g.time} · {grp?.name}</div></div><Badge>Registered</Badge></div>);
           })}
         </Card>
       )}
@@ -946,7 +946,7 @@ const ProfilePage=({user,groups,games,onUpdateUser})=>{
   );
 };
 
-// â”€â”€ APP ROOT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── APP ROOT ──────────────────────────────────────────────────────────────────
 export default function App(){
   const [db,setDb]=useState(SEED);
   const [userId,setUserId]=useState(null);
