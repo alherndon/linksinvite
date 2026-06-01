@@ -1,0 +1,71 @@
+---
+title: LinksInvite Database Schema v2.2
+---
+erDiagram
+    GROUPS ||--o{ LOCATIONS : "has"
+    GROUPS ||--o{ GAMES : "owns"
+    LOCATIONS ||--o{ GAMES : "hosts"
+    GAMES ||--o{ TEE_TIME_REQUESTS : "generates"
+    TEE_TIMES }o..o{ TEE_TIME_REQUESTS : "candidate slots"
+
+    GROUPS {
+        UUID id PK
+        TEXT name
+        TEXT description
+        JSONB locations "legacy/config array"
+        BOOLEAN is_active
+        TIMESTAMPTZ created_at
+        TIMESTAMPTZ updated_at
+    }
+
+    LOCATIONS {
+        UUID id PK
+        UUID group_id FK
+        TEXT name
+        TEXT address
+        DECIMAL lat
+        DECIMAL lng
+        JSONB teeTimeContact "course coordinator contact"
+        BOOLEAN is_active
+        TIMESTAMPTZ created_at
+        TIMESTAMPTZ updated_at
+    }
+
+    GAMES {
+        UUID id PK
+        UUID group_id FK
+        UUID location_id FK
+        TEXT description
+        JSONB rules
+        INTEGER max_players
+        TEXT pairing_method "blind_draw | balanced | none"
+        BOOLEAN assign_foursomes
+        BOOLEAN recurring
+        JSONB recurrence
+        BOOLEAN is_active
+        TIMESTAMPTZ created_at
+        TIMESTAMPTZ updated_at
+    }
+
+    TEE_TIMES {
+        UUID id PK
+        TEXT day_of_week "saturday | sunday"
+        TIME start_time "e.g. 08:00:00"
+        INTEGER slots "available spots"
+        BOOLEAN is_active
+        TIMESTAMPTZ created_at
+    }
+
+    TEE_TIME_REQUESTS {
+        UUID id PK
+        UUID game_id FK
+        TIMESTAMPTZ sent_at
+        JSONB requested_times "candidate tee times"
+        JSONB players "player payload"
+        TEXT to_name "pro shop / coordinator"
+        TEXT to_email
+        TEXT status "pending | responded | cancelled"
+        JSONB response "confirmed or alternate times"
+        TIMESTAMPTZ created_at
+        TIMESTAMPTZ updated_at
+    }
