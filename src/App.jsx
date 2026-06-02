@@ -76,13 +76,21 @@ const toUiUser=row=>({
   handicap:Number(row.handicap)||0,
   ghin:row.ghin||"",
 });
+function parseTeeTimeContact(raw){
+  try{return JSON.parse(raw||"{}");}catch{return{name:"",email:"",phone:""};}
+}
 const toUiLocation=row=>({
   id:row.location_id,
   name:row.name||"",
   address:row.address||"",
   lat:33.5,lng:-84.5,
-  teeTimeContact:(()=>{try{return JSON.parse(row.tee_time_contact||"{}");}catch{return{name:"",email:"",phone:""};}}()),
+  teeTimeContact:parseTeeTimeContact(row.tee_time_contact),
 });
+function parseResponse(raw){
+  if(!raw)return null;
+  if(typeof raw==="object")return raw;
+  try{return JSON.parse(raw);}catch{return null;}
+}
 const toUiTTR=row=>({
   id:String(row.response_token_hash||uid()),
   sentAt:row.sent_at?new Date(row.sent_at).toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit"}):"",
@@ -91,7 +99,7 @@ const toUiTTR=row=>({
   toName:row.to_pro_shop_name||"",
   toEmail:row.to_pro_shop_email||"",
   status:row.status||"pending",
-  response:(()=>{try{return typeof row.response==="string"?JSON.parse(row.response||"null"):row.response;}catch{return null;}})(),
+  response:parseResponse(row.response),
 });
 const toUiGame=(row,regs,ttrs)=>({
   id:row.id,
