@@ -175,6 +175,115 @@ const TA=({label,value,onChange,rows=3})=>(
 );
 
 // ── AUTH ──────────────────────────────────────────────────────────────────────
+const PublicTeeTimeResponsePage=({token})=>{
+  const [request,setRequest]=useState(null);
+  const [type,setType]=useState("confirmed");
+  const [confirmedTime,setConfirmedTime]=useState("");
+  const [alternateTimes,setAlternateTimes]=useState("");
+  const [note,setNote]=useState("");
+  const [loading,setLoading]=useState(true);
+  const [submitting,setSubmitting]=useState(false);
+  const [submitted,setSubmitted]=useState(false);
+  const [error,setError]=useState("");
+
+  useEffect(()=>{
+    let cancelled=false;
+    const load=async()=>{
+      try{
+        const res=await fetch(`/api/tee_time_requests/respond?token=${encodeURIComponent(token)}`);
+        const body=await res.json();
+        if(!res.ok)throw new Error(body.error||"Unable to load tee-time request");
+        if(cancelled)return;
+        setRequest(body.data);
+        setConfirmedTime(body.data.requestedTimes?.[0]||"");
+        if(body.data.status==="responded")setSubmitted(true);
+      }catch(err){
+        if(!cancelled)setError(err.message);
+      }finally{
+        if(!cancelled)setLoading(false);
+      }
+    };
+    load();
+    return()=>{cancelled=true;};
+  },[token]);
+
+  const submit=async()=>{
+    setSubmitting(true);
+    setError("");
+    try{
+      const times=alternateTimes.split(",").map(t=>t.trim()).filter(Boolean);
+      const res=await fetch("/api/tee_time_requests/respond",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({token,type,confirmedTime,alternateTimes:times,note}),
+      });
+      const body=await res.json();
+      if(!res.ok)throw new Error(body.error||"Unable to submit response");
+      setRequest(body.data);
+      setSubmitted(true);
+    }catch(err){
+      setError(err.message);
+    }finally{
+      setSubmitting(false);
+    }
+  };
+
+  const requestedTimes=request?.requestedTimes||[];
+
+  return(
+    <div style={{minHeight:"100vh",background:S.bg,color:S.text,fontFamily:"'DM Sans','Segoe UI',sans-serif",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+      <div style={{width:"100%",maxWidth:560}}>
+        <div style={{textAlign:"center",marginBottom:24}}>
+          <div style={{fontSize:24,fontWeight:800,letterSpacing:"-0.03em"}}>LinksInvite</div>
+          <div style={{fontSize:13,color:S.textMuted,marginTop:4}}>Tee Time Response</div>
+        </div>
+        <Card>
+          {loading&&<p style={{margin:0,color:S.textMuted,textAlign:"center"}}>Loading request...</p>}
+          {!loading&&error&&!request&&(
+            <div>
+              <h1 style={{margin:"0 0 8px",fontSize:20}}>Unable to open this link</h1>
+              <p style={{margin:0,color:S.danger,lineHeight:1.6}}>{error}</p>
+            </div>
+          )}
+          {!loading&&request&&submitted&&(
+            <div style={{textAlign:"center"}}>
+              <h1 style={{margin:"0 0 8px",fontSize:20,color:S.accent}}>Response received</h1>
+              <p style={{margin:0,color:S.textMuted,lineHeight:1.6}}>Thank you. The group administrator has your tee-time response.</p>
+            </div>
+          )}
+          {!loading&&request&&!submitted&&(
+            <>
+              <h1 style={{margin:"0 0 6px",fontSize:20}}>Confirm tee times</h1>
+              <p style={{margin:"0 0 18px",fontSize:13,color:S.textMuted,lineHeight:1.6}}>
+                {request.toProShopName?`Hello ${request.toProShopName}. `:""}Please confirm one of the requested times or suggest alternates.
+              </p>
+              <SecTitle>Requested Times</SecTitle>
+              <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:18}}>
+                {requestedTimes.map(time=><Badge key={time}>{time}</Badge>)}
+              </div>
+              <div style={{display:"flex",gap:8,marginBottom:16}}>
+                {[["confirmed","Confirm a time"],["alternates","Suggest alternates"]].map(([value,label])=>(
+                  <button key={value} onClick={()=>setType(value)} style={{flex:1,padding:"9px 10px",borderRadius:8,border:`1px solid ${type===value?S.accent:S.cardBorder}`,background:type===value?S.accentSubtle:"transparent",color:type===value?S.accent:S.textMuted,fontFamily:"inherit",fontSize:13,fontWeight:600,cursor:"pointer"}}>{label}</button>
+                ))}
+              </div>
+              {type==="confirmed"?(
+                <Sel label="Confirmed Tee Time" value={confirmedTime} onChange={setConfirmedTime} options={requestedTimes.map(time=>({value:time,label:time}))}/>
+              ):(
+                <Inp label="Alternate Tee Times" value={alternateTimes} onChange={setAlternateTimes} placeholder="9:00 AM, 9:10 AM, 9:20 AM" hint="Separate multiple times with commas"/>
+              )}
+              <TA label="Note (optional)" value={note} onChange={setNote} rows={3}/>
+              {error&&<p style={{margin:"0 0 12px",fontSize:12,color:S.danger}}>{error}</p>}
+              <Btn full onClick={submit} disabled={submitting||(type==="confirmed"?!confirmedTime:!alternateTimes.trim())}>
+                {submitting?"Submitting...":"Send Response"}
+              </Btn>
+            </>
+          )}
+        </Card>
+      </div>
+    </div>
+  );
+};
+
 const AuthPage=({onAuth,onSetDb})=>{
   const [mode,setMode]=useState("login");
   const [step,setStep]=useState(1);
@@ -1024,6 +1133,7 @@ const ProfilePage=({user,groups,games,onUpdateUser})=>{
 
 // ── APP ROOT ──────────────────────────────────────────────────────────────────
 export default function App(){
+  const responseMatch=window.location.pathname.match(/^\/respond\/([^/]+)\/?$/);
   const [db,setDb]=useState(SEED);
   const [userId,setUserId]=useState(null);
   const [page,setPage]=useState("splash");
@@ -1034,6 +1144,8 @@ export default function App(){
   const group=db.groups.find(g=>g.id===groupId);
 
   useEffect(()=>{if(userId&&!groupId&&myGroups.length>0)setGroupId(myGroups[0].id);},[userId,myGroups.length,groupId]);
+
+  if(responseMatch)return <PublicTeeTimeResponsePage token={decodeURIComponent(responseMatch[1])}/>;
 
   if(!userId)return(
     <AuthPage
