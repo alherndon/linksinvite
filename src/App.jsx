@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { supabase } from "./supabaseClient";
 
 const S = {
   bg:"#0d1a0e",surface:"#132016",card:"#1a2b1c",cardBorder:"#2a3f2c",
@@ -6,81 +7,6 @@ const S = {
   gold:"#f5c842",text:"#e8f0e9",textMuted:"#7a9e7e",textDim:"#4a6b4e",
   danger:"#f87171",dangerBg:"#2d1515",warning:"#fb923c",warningBg:"#2d1a0a",
   info:"#60a5fa",infoBg:"#0d1f35",
-};
-
-const SEED = {
-  users:[
-    {id:"u1",firstName:"James",lastName:"Harrington",email:"james@example.com",phone:"770-555-0101",handicap:15,ghin:""},
-    {id:"u2",firstName:"Tom",  lastName:"Hargrove",  email:"tom@example.com",  phone:"770-555-0102",handicap:8, ghin:"1234567"},
-    {id:"u3",firstName:"Mike", lastName:"Delaney",   email:"mike@example.com", phone:"770-555-0103",handicap:14,ghin:""},
-    {id:"u4",firstName:"Ray",  lastName:"Bonner",    email:"ray@example.com",  phone:"770-555-0104",handicap:19,ghin:""},
-    {id:"u5",firstName:"Phil", lastName:"Castro",    email:"phil@example.com", phone:"770-555-0105",handicap:12,ghin:""},
-  ],
-  groups:[
-    {
-      id:"g1",name:"Newnan Saturday Crew",description:"Weekly Saturday morning game at Newnan CC.",
-      locations:[
-        {id:"l1",name:"Newnan Country Club",address:"200 Newnan CC Dr, Newnan, GA",lat:33.38,lng:-84.77,
-         teeTimeContact:{name:"Bobby Stafford",email:"pro@newnancc.com",phone:"770-253-4400"}},
-        {id:"l2",name:"Canongate Golf Club",address:"1 Golf Course Dr, Palmetto, GA",lat:33.52,lng:-84.67,
-         teeTimeContact:{name:"",email:"",phone:""}},
-      ],
-      memberships:[
-        {userId:"u1",role:"superadmin"},{userId:"u2",role:"admin"},
-        {userId:"u3",role:"player"},{userId:"u4",role:"player"},
-      ],
-    },
-    {
-      id:"g2",name:"Atlanta Corporate League",description:"Competitive corporate scramble every other Sunday.",
-      locations:[
-        {id:"l3",name:"East Lake Golf Club",address:"2575 Alston Dr SE, Atlanta, GA",lat:33.73,lng:-84.33,
-         teeTimeContact:{name:"Dana Whitmore",email:"teetimes@eastlake.com",phone:"404-373-5600"}},
-      ],
-      memberships:[
-        {userId:"u5",role:"superadmin"},{userId:"u1",role:"player"},
-      ],
-    },
-  ],
-  games:[
-    {
-      id:"gm1",groupId:"g1",locationId:"l1",day:"Saturday",date:"June 7, 2025",time:"8:00 AM",
-      description:"Balanced foursome stroke play. Cart fees included. Range balls from 7:30 AM.",
-      rules:"Full handicap. Lost ball: stroke & distance. Winter rules on fairways. Pace: 4.5 hrs max.",
-      pairingMethod:"balanced",assignFoursomes:true,maxPlayers:16,recurring:true,
-      registrations:["u2","u3","u4"],waitlist:[],
-      teeTimeRequests:[
-        {id:"ttr1",sentAt:"May 30, 2025 · 9:14 AM",requestedTimes:["8:00 AM","8:10 AM","8:20 AM"],
-         players:16,toName:"Bobby Stafford",toEmail:"pro@newnancc.com",status:"responded",
-         response:{type:"confirmed",confirmedTime:"8:00 AM",alternateTimes:null,
-           note:"Confirmed for Saturday June 7. Please arrive by 7:30 AM for check-in.",
-           respondedAt:"May 30, 2025 · 11:42 AM"}},
-      ],
-    },
-    {
-      id:"gm2",groupId:"g1",locationId:"l1",day:"Sunday",date:"June 8, 2025",time:"9:30 AM",
-      description:"Relaxed 9-hole scramble. All skill levels welcome. Carts optional.",
-      rules:"Scramble: best ball selected, all play from that spot. Max 10 strokes per hole.",
-      pairingMethod:"blindDraw",assignFoursomes:false,maxPlayers:12,recurring:false,
-      registrations:["u3"],waitlist:[],teeTimeRequests:[],
-    },
-    {
-      id:"gm3",groupId:"g2",locationId:"l3",day:"Sunday",date:"June 8, 2025",time:"11:00 AM",
-      description:"Corporate scramble. Teams of 4. Prizes for 1st, 2nd, closest to pin.",
-      rules:"Best ball scramble. Handicap: 80% of low player in team. No mulligans.",
-      pairingMethod:"system",assignFoursomes:true,maxPlayers:20,recurring:true,
-      registrations:["u5","u1"],waitlist:[],
-      teeTimeRequests:[
-        {id:"ttr2",sentAt:"May 29, 2025 · 2:00 PM",requestedTimes:["11:00 AM","11:10 AM","11:20 AM","11:30 AM"],
-         players:20,toName:"Dana Whitmore",toEmail:"teetimes@eastlake.com",status:"pending",response:null},
-      ],
-    },
-  ],
-};
-
-const WEATHER={
-  l1:[{day:"Fri",icon:"☀️",hi:84,lo:67,rain:5,rating:"Excellent"},{day:"Sat",icon:"⛅",hi:79,lo:65,rain:22,rating:"Good"},{day:"Sun",icon:"🌦",hi:74,lo:63,rain:40,rating:"Fair"}],
-  l2:[{day:"Fri",icon:"⛅",hi:82,lo:65,rain:10,rating:"Good"},{day:"Sat",icon:"☀️",hi:85,lo:68,rain:3,rating:"Excellent"},{day:"Sun",icon:"🌧",hi:71,lo:60,rain:70,rating:"Poor"}],
-  l3:[{day:"Fri",icon:"☀️",hi:86,lo:70,rain:2,rating:"Excellent"},{day:"Sat",icon:"☀️",hi:88,lo:72,rain:5,rating:"Excellent"},{day:"Sun",icon:"⛅",hi:80,lo:66,rain:18,rating:"Good"}],
 };
 
 const PAIRING_OPTIONS=[
@@ -98,11 +24,10 @@ const RECURRENCE_OPTIONS=[
 ];
 
 const WEEKDAYS=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
-
 const MONTHS=["January","February","March","April","May","June","July","August","September","October","November","December"];
 
 // ── helpers ──────────────────────────────────────────────────────────────────
-const uid=()=>Math.random().toString(36).slice(2,9);
+const uid=()=>crypto.randomUUID();
 const fullName=u=>`${u.firstName} ${u.lastName}`;
 const initials=u=>`${u.firstName[0]}${u.lastName[0]}`.toUpperCase();
 const getMem=(group,userId)=>group.memberships.find(m=>m.userId===userId);
@@ -111,6 +36,105 @@ const isSA=(group,userId)=>getMem(group,userId)?.role==="superadmin";
 const getUser=(users,id)=>users.find(u=>u.id===id);
 const getLoc=(group,id)=>group.locations.find(l=>l.id===id);
 const groupGames=(games,gid)=>games.filter(g=>g.groupId===gid);
+
+// ── DB ↔ UI transforms ────────────────────────────────────────────────────────
+function formatDbDate(d){
+  if(!d)return"";
+  // "2025-06-07" → "June 7, 2025"
+  const dt=new Date(d+"T12:00:00Z");
+  return dt.toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"});
+}
+function formatDbTime(t){
+  if(!t)return"8:00 AM";
+  const m=t.match(/(\d+):(\d+)/);
+  if(!m)return t;
+  let h=parseInt(m[1]),mn=parseInt(m[2]);
+  const ap=h>=12?"PM":"AM";
+  return`${h%12||12}:${String(mn).padStart(2,"0")} ${ap}`;
+}
+function parseUiDate(s){
+  if(!s)return null;
+  const d=new Date(s);
+  return isNaN(d.getTime())?null:d.toISOString().split("T")[0];
+}
+function parseUiTime(s){
+  if(!s)return null;
+  const m=s.match(/(\d+):(\d+)\s*(AM|PM)/i);
+  if(!m)return null;
+  let h=parseInt(m[1]);
+  const mn=parseInt(m[2]),isPM=m[3].toUpperCase()==="PM";
+  if(isPM&&h!==12)h+=12;
+  if(!isPM&&h===12)h=0;
+  return`${String(h).padStart(2,"0")}:${String(mn).padStart(2,"0")}:00`;
+}
+const toUiUser=row=>({
+  id:row.id,
+  firstName:row.first_name||"",
+  lastName:row.last_name||"",
+  email:row.email||"",
+  phone:row.phone||"",
+  handicap:Number(row.handicap)||0,
+  ghin:row.ghin||"",
+});
+const toUiLocation=row=>({
+  id:row.location_id,
+  name:row.name||"",
+  address:row.address||"",
+  lat:33.5,lng:-84.5,
+  teeTimeContact:(()=>{try{return JSON.parse(row.tee_time_contact||"{}");}catch{return{name:"",email:"",phone:""};}}()),
+});
+const toUiTTR=row=>({
+  id:String(row.response_token_hash||uid()),
+  sentAt:row.sent_at?new Date(row.sent_at).toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit"}):"",
+  requestedTimes:row.requested_time||[],
+  players:0,
+  toName:row.to_pro_shop_name||"",
+  toEmail:row.to_pro_shop_email||"",
+  status:row.status||"pending",
+  response:(()=>{try{return typeof row.response==="string"?JSON.parse(row.response||"null"):row.response;}catch{return null;}})(),
+});
+const toUiGame=(row,regs,ttrs)=>({
+  id:row.id,
+  groupId:row.group_id,
+  locationId:row.location_id,
+  day:Array.isArray(row.day_of_week)?row.day_of_week[0]:row.day_of_week||"",
+  date:formatDbDate(row.scheduled_date),
+  time:formatDbTime(row.first_tee_time),
+  description:row.description||"",
+  rules:row.rules||"",
+  pairingMethod:Array.isArray(row.pairing_method)?row.pairing_method[0]:row.pairing_method||"balanced",
+  assignFoursomes:row.assign_players||false,
+  maxPlayers:Number(row.max_players)||16,
+  recurring:row.recurring||false,
+  recurrence:row.recurrence||null,
+  registrations:(regs||[]).filter(r=>r.game_id===row.id&&r.status?.includes("registered")).map(r=>r.user_id),
+  waitlist:(regs||[]).filter(r=>r.game_id===row.id&&r.status?.includes("waitlisted")).sort((a,b)=>(a.position||0)-(b.position||0)).map(r=>r.user_id),
+  teeTimeRequests:(ttrs||[]).filter(t=>t.game_id===row.id).map(toUiTTR),
+});
+const toDbGame=game=>({
+  id:game.id,
+  group_id:game.groupId,
+  location_id:game.locationId||null,
+  description:game.description||null,
+  rules:game.rules||null,
+  max_players:game.maxPlayers,
+  pairing_method:[game.pairingMethod],
+  assign_players:game.assignFoursomes,
+  recurring:game.recurring,
+  recurrence:game.recurrence||null,
+  day_of_week:[game.day],
+  first_tee_time:parseUiTime(game.time),
+  scheduled_date:parseUiDate(game.date),
+  is_active:true,
+});
+const toDbLocation=(loc,groupId)=>({
+  location_id:loc.id,
+  group_id:groupId,
+  name:loc.name,
+  address:loc.address||"",
+  tee_time_contact:JSON.stringify(loc.teeTimeContact||{}),
+  is_active:true,
+});
 
 // ── shared UI ─────────────────────────────────────────────────────────────────
 const Badge=({children,color=S.accent,bg=S.accentSubtle})=>(
@@ -174,7 +198,7 @@ const TA=({label,value,onChange,rows=3})=>(
   </div>
 );
 
-// ── AUTH ──────────────────────────────────────────────────────────────────────
+// ── PUBLIC TEE TIME RESPONSE PAGE ─────────────────────────────────────────────
 const PublicTeeTimeResponsePage=({token})=>{
   const [request,setRequest]=useState(null);
   const [type,setType]=useState("confirmed");
@@ -284,7 +308,8 @@ const PublicTeeTimeResponsePage=({token})=>{
   );
 };
 
-const AuthPage=({onAuth,onSetDb})=>{
+// ── AUTH ──────────────────────────────────────────────────────────────────────
+const AuthPage=()=>{
   const [mode,setMode]=useState("login");
   const [step,setStep]=useState(1);
   const [f,setF]=useState({firstName:"",lastName:"",email:"",phone:"",password:"",handicap:"",ghin:""});
@@ -292,6 +317,9 @@ const AuthPage=({onAuth,onSetDb})=>{
   const [intent,setIntent]=useState("create");
   const [joinCode,setJoinCode]=useState("");
   const [errors,setErrors]=useState({});
+  const [authLoading,setAuthLoading]=useState(false);
+  const [authError,setAuthError]=useState("");
+  const [confirmPending,setConfirmPending]=useState(false);
   const sf=k=>v=>setF(p=>({...p,[k]:v}));
   const sg=k=>v=>setG(p=>({...p,[k]:v}));
 
@@ -305,22 +333,88 @@ const AuthPage=({onAuth,onSetDb})=>{
     return e;
   };
 
-  const finish=(db,setDb)=>{
-    const newId="u"+uid();
-    const newUser={id:newId,firstName:f.firstName,lastName:f.lastName,email:f.email,phone:f.phone,handicap:+f.handicap,ghin:f.ghin};
-    if(intent==="join"){
-      const target=db.groups.find(gr=>gr.id===joinCode||gr.name.toLowerCase().includes(joinCode.toLowerCase()));
-      if(!target){setErrors({join:"Group not found."});return;}
-      const updated={...target,memberships:[...target.memberships,{userId:newId,role:"player"}]};
-      setDb(d=>({...d,users:[...d.users,newUser],groups:d.groups.map(gr=>gr.id===target.id?updated:gr)}));
-    } else {
-      if(!g.name.trim()){setErrors({gname:"Required"});return;}
-      const newLoc={id:"l"+uid(),name:g.locName||"Home Course",address:g.locAddress||"",lat:33.5,lng:-84.5,teeTimeContact:{name:"",email:"",phone:""}};
-      const newGroup={id:"g"+uid(),name:g.name,description:g.description,locations:[newLoc],memberships:[{userId:newId,role:"superadmin"}]};
-      setDb(d=>({...d,users:[...d.users,newUser],groups:[...d.groups,newGroup]}));
+  const handleLogin=async()=>{
+    if(!f.email||!f.password){setAuthError("Email and password are required.");return;}
+    setAuthLoading(true);setAuthError("");
+    try{
+      const{error}=await supabase.auth.signInWithPassword({email:f.email,password:f.password});
+      if(error)throw error;
+      // onAuthStateChange in App root takes over
+    }catch(err){
+      setAuthError(err.message);
+    }finally{
+      setAuthLoading(false);
     }
-    onAuth(newId);
   };
+
+  const handleRegister=async()=>{
+    const e=v1();
+    if(Object.keys(e).length){setErrors(e);return;}
+    if(intent==="create"&&!g.name.trim()){setErrors({gname:"Required"});return;}
+    if(intent==="join"&&!joinCode.trim()){setErrors({join:"Enter a group name or invite code"});return;}
+    if(!f.password||f.password.length<6){setErrors({password:"Password must be at least 6 characters"});return;}
+    setAuthLoading(true);setAuthError("");
+    try{
+      const{data:authData,error:signUpError}=await supabase.auth.signUp({email:f.email,password:f.password});
+      if(signUpError)throw signUpError;
+      const authUserId=authData.user?.id;
+      if(!authUserId)throw new Error("Failed to create account — please try again");
+
+      const{error:profileError}=await supabase.from("users").insert({
+        id:authUserId,first_name:f.firstName,last_name:f.lastName,
+        email:f.email,phone:f.phone,handicap:parseFloat(f.handicap)||0,ghin:f.ghin||null,
+      });
+      if(profileError)throw profileError;
+
+      if(intent==="create"){
+        const{data:groupData,error:groupError}=await supabase.from("groups").insert({
+          name:g.name,description:g.description||"",is_active:true,
+        }).select().single();
+        if(groupError)throw groupError;
+
+        if(g.locName){
+          await supabase.from("locations").insert({
+            group_id:groupData.id,name:g.locName,address:g.locAddress||"",
+            tee_time_contact:JSON.stringify({name:"",email:"",phone:""}),is_active:true,
+          });
+        }
+        await supabase.from("group_memberships").insert({
+          group_id:groupData.id,user_id:authUserId,role:"superadmin",
+        });
+      }else{
+        const{data:groupData,error:groupFindError}=await supabase.from("groups")
+          .select("id").ilike("name",`%${joinCode}%`).eq("is_active",true).limit(1).single();
+        if(groupFindError||!groupData){setErrors({join:"Group not found. Check the name and try again."});setAuthLoading(false);return;}
+        await supabase.from("group_memberships").insert({
+          group_id:groupData.id,user_id:authUserId,role:"player",
+        });
+      }
+
+      if(!authData.session){
+        setConfirmPending(true);
+      }
+    }catch(err){
+      setAuthError(err.message);
+    }finally{
+      setAuthLoading(false);
+    }
+  };
+
+  if(confirmPending){
+    return(
+      <div style={{minHeight:"100vh",background:S.bg,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+        <div style={{width:"100%",maxWidth:440,textAlign:"center"}}>
+          <div style={{fontSize:40,marginBottom:16}}>📧</div>
+          <div style={{fontSize:20,fontWeight:700,color:S.accent,marginBottom:8}}>Check your email</div>
+          <div style={{fontSize:14,color:S.textMuted,lineHeight:1.7}}>
+            We sent a confirmation link to <strong style={{color:S.text}}>{f.email}</strong>.<br/>
+            Click it to activate your account, then come back to sign in.
+          </div>
+          <Btn style={{marginTop:24}} onClick={()=>{setConfirmPending(false);setMode("login");}}>Back to sign in</Btn>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{minHeight:"100vh",background:S.bg,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
@@ -333,16 +427,17 @@ const AuthPage=({onAuth,onSetDb})=>{
         <Card>
           <div style={{display:"flex",background:S.surface,borderRadius:10,padding:3,marginBottom:24}}>
             {["login","register"].map(m=>(
-              <button key={m} onClick={()=>{setMode(m);setStep(1);setErrors({});}} style={{flex:1,padding:"8px 0",borderRadius:8,border:"none",fontFamily:"inherit",fontSize:13,fontWeight:600,cursor:"pointer",background:mode===m?S.card:"transparent",color:mode===m?S.accent:S.textMuted,textTransform:"capitalize"}}>{m}</button>
+              <button key={m} onClick={()=>{setMode(m);setStep(1);setErrors({});setAuthError("");}} style={{flex:1,padding:"8px 0",borderRadius:8,border:"none",fontFamily:"inherit",fontSize:13,fontWeight:600,cursor:"pointer",background:mode===m?S.card:"transparent",color:mode===m?S.accent:S.textMuted,textTransform:"capitalize"}}>{m}</button>
             ))}
           </div>
+
+          {authError&&<div style={{background:S.dangerBg,border:`1px solid ${S.danger}44`,borderRadius:8,padding:"10px 14px",marginBottom:14,fontSize:13,color:S.danger}}>{authError}</div>}
 
           {mode==="login"&&(
             <div>
               <Inp label="Email" value={f.email} onChange={sf("email")} placeholder="you@example.com" type="email"/>
               <Inp label="Password" value={f.password} onChange={sf("password")} placeholder="••••••••" type="password"/>
-              <Btn full onClick={()=>onAuth("u1")}>Sign in</Btn>
-              <p style={{textAlign:"center",fontSize:12,color:S.textDim,marginTop:16}}>Demo: signs in as James Harrington (group owner)</p>
+              <Btn full onClick={handleLogin} disabled={authLoading}>{authLoading?"Signing in…":"Sign in"}</Btn>
             </div>
           )}
 
@@ -359,6 +454,7 @@ const AuthPage=({onAuth,onSetDb})=>{
                 <Inp label="Handicap" value={f.handicap} onChange={sf("handicap")} required placeholder="15.4" type="number" error={errors.handicap}/>
                 <Inp label="GHIN (optional)" value={f.ghin} onChange={sf("ghin")} placeholder="7-digit ID"/>
               </div>
+              <Inp label="Password" value={f.password} onChange={sf("password")} required placeholder="Min 6 characters" type="password" error={errors.password}/>
               <Btn full onClick={()=>{const e=v1();if(Object.keys(e).length){setErrors(e);return;}setErrors({});setStep(2);}}>Continue →</Btn>
             </div>
           )}
@@ -388,8 +484,8 @@ const AuthPage=({onAuth,onSetDb})=>{
               )}
               <div style={{display:"flex",gap:8,marginTop:8}}>
                 <Btn variant="ghost" onClick={()=>setStep(1)}>← Back</Btn>
-                <Btn full onClick={()=>finish(SEED,v=>{onSetDb(v);})}>
-                  {intent==="create"?"Create group & sign in":"Join & sign in"}
+                <Btn full onClick={handleRegister} disabled={authLoading}>
+                  {authLoading?"Creating account…":intent==="create"?"Create group & sign in":"Join & sign in"}
                 </Btn>
               </div>
             </div>
@@ -444,22 +540,47 @@ const TopNav=({page,setPage,user,group,groups,onGroupChange,onSignOut})=>{
 };
 
 // ── SPLASH ────────────────────────────────────────────────────────────────────
-const WeatherWidget=({locationId})=>{
-  const wx=(WEATHER[locationId]||WEATHER.l1);
+const WeatherWidget=({location})=>{
+  const [wx,setWx]=useState(null);
+  const [wxLoading,setWxLoading]=useState(false);
+
+  useEffect(()=>{
+    if(!location?.name)return;
+    setWxLoading(true);
+    fetch(`/api/weather?location=${encodeURIComponent(location.name+","+(location.address||""))}`)
+      .then(r=>r.json())
+      .then(d=>{if(d.days)setWx(d.days);})
+      .catch(()=>{})
+      .finally(()=>setWxLoading(false));
+  },[location?.name]);
+
+  const ratingColor=r=>r==="Excellent"?S.accent:r==="Hot"?S.gold:r==="Fair"?S.warning:S.danger;
+  const ratingBg=r=>r==="Excellent"?S.accentSubtle:r==="Hot"?"#2a2000":r==="Fair"?S.warningBg:S.dangerBg;
+
   return (
     <Card style={{marginBottom:20}}>
-      <SecTitle>3-Day Forecast</SecTitle>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
-        {wx.map(w=>(
-          <div key={w.day} style={{background:S.surface,borderRadius:10,padding:"14px 12px",textAlign:"center",border:`1px solid ${w.day==="Sat"?S.accent+"55":S.cardBorder}`}}>
-            <div style={{fontSize:11,fontWeight:700,color:w.day==="Sat"?S.accent:S.textMuted,letterSpacing:"0.08em",marginBottom:6}}>{w.day}</div>
-            <div style={{fontSize:26,marginBottom:6}}>{w.icon}</div>
-            <div style={{fontSize:13,fontWeight:600,color:S.text,marginBottom:3}}>{w.hi}° / {w.lo}°</div>
-            <div style={{fontSize:11,color:S.textMuted,marginBottom:8}}>{w.rain}% rain</div>
-            <Badge color={w.rating==="Excellent"?S.accent:w.rating==="Good"?S.gold:w.rating==="Fair"?S.warning:S.danger} bg={w.rating==="Excellent"?S.accentSubtle:w.rating==="Good"?"#2a2000":w.rating==="Fair"?S.warningBg:S.dangerBg}>{w.rating}</Badge>
-          </div>
-        ))}
-      </div>
+      <SecTitle>3-Day Forecast{location?.name&&<span style={{fontWeight:400,color:S.textDim,marginLeft:6,fontSize:11}}>— {location.name}</span>}</SecTitle>
+      {wxLoading&&<p style={{margin:0,fontSize:13,color:S.textMuted}}>Loading forecast…</p>}
+      {!wxLoading&&!wx&&<p style={{margin:0,fontSize:13,color:S.textDim}}>Forecast unavailable</p>}
+      {!wxLoading&&wx&&(
+        <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
+          {wx.map((w,i)=>{
+            const day=w.dayName?.slice(0,3)||"—";
+            const tempParts=(w.temp||"").replace(/°F/g,"").split("/");
+            const hi=(tempParts[0]||"").trim();
+            const lo=(tempParts[1]||"").trim();
+            const rain=parseInt(w.rainChance)||0;
+            return(
+              <div key={i} style={{background:S.surface,borderRadius:10,padding:"14px 12px",textAlign:"center",border:`1px solid ${i===0?S.accent+"55":S.cardBorder}`}}>
+                <div style={{fontSize:11,fontWeight:700,color:i===0?S.accent:S.textMuted,letterSpacing:"0.08em",marginBottom:6}}>{day}</div>
+                <div style={{fontSize:13,fontWeight:600,color:S.text,marginBottom:3}}>{hi} / {lo}</div>
+                <div style={{fontSize:11,color:S.textMuted,marginBottom:8}}>{rain}% rain</div>
+                <Badge color={ratingColor(w.playability)} bg={ratingBg(w.playability)}>{w.playability}</Badge>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </Card>
   );
 };
@@ -535,7 +656,7 @@ const SplashPage=({group,user,users,games,onRegister})=>{
         <h1 style={{margin:"0 0 4px",fontSize:26,fontWeight:800,color:S.text,letterSpacing:"-0.03em"}}>{group.name}</h1>
         <p style={{margin:0,fontSize:14,color:S.textMuted}}>{group.description}</p>
       </div>
-      {primaryLoc&&<WeatherWidget locationId={primaryLoc.id}/>}
+      {primaryLoc&&<WeatherWidget location={primaryLoc}/>}
       {myGames.length===0?<Card><p style={{color:S.textMuted,textAlign:"center",margin:0}}>No games scheduled yet.</p></Card>:myGames.map(g=><GameCard key={g.id} game={g} group={group} user={user} users={users} onRegister={onRegister}/>)}
     </div>
   );
@@ -557,7 +678,7 @@ const TeeTimeModal=({game,location,adminUser,group,onSend,onClose})=>{
       const hr=Math.floor(t/60)%12||12;
       const m2=String(t%60).padStart(2,"0");
       const ap=t%1440<720?"AM":"PM";
-      return `${hr}:${m2} ${ap}`;
+      return`${hr}:${m2} ${ap}`;
     });
   };
   const [times,setTimes]=useState(genTimes().join(", "));
@@ -566,12 +687,37 @@ const TeeTimeModal=({game,location,adminUser,group,onSend,onClose})=>{
   const [toEmail,setToEmail]=useState(contact.email||"");
   const [tab,setTab]=useState("compose");
   const [sent,setSent]=useState(false);
+  const [sending,setSending]=useState(false);
+  const [sendError,setSendError]=useState("");
   const replyLink=`https://linksinvite.com/respond/${game.id}`;
   const preview=`Hi ${toName||"[Contact]"},\n\nI'm reaching out to reserve tee times for ${group.name}.\n\nGame details:\n  Date: ${game.date} (${game.day})\n  Players: ${game.maxPlayers} (${foursomes} foursomes)\n  Requested times: ${times}\n${note?`\nNotes: ${note}\n`:""}\nPlease confirm or suggest alternates:\n  → ${replyLink}\n\nThank you,\n${fullName(adminUser)}\n${adminUser.email} · ${adminUser.phone}`;
 
-  const handleSend=()=>{
-    onSend({id:"ttr"+uid(),sentAt:new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit"}),requestedTimes:times.split(",").map(t=>t.trim()).filter(Boolean),players:game.maxPlayers,toName,toEmail,status:"pending",response:null});
-    setSent(true);
+  const handleSend=async()=>{
+    setSending(true);setSendError("");
+    try{
+      const requestedTimes=times.split(",").map(t=>t.trim()).filter(Boolean);
+      const{data:{session}}=await supabase.auth.getSession();
+      const headers={"Content-Type":"application/json"};
+      if(session?.access_token)headers["Authorization"]=`Bearer ${session.access_token}`;
+      const res=await fetch("/api/tee_times/request",{
+        method:"POST",
+        headers,
+        body:JSON.stringify({gameId:game.id,requestedTimes,toProShopName:toName,toProShopEmail:toEmail}),
+      });
+      const body=await res.json();
+      if(!res.ok)throw new Error(body.error||"Failed to send request");
+      const sentAt=new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit"});
+      onSend({
+        id:String(body.data?.response_token_hash||uid()),
+        sentAt,requestedTimes,players:game.maxPlayers,
+        toName,toEmail,status:"pending",response:null,
+      });
+      setSent(true);
+    }catch(err){
+      setSendError(err.message);
+    }finally{
+      setSending(false);
+    }
   };
 
   return (
@@ -587,7 +733,7 @@ const TeeTimeModal=({game,location,adminUser,group,onSend,onClose})=>{
         {sent?(
           <div style={{padding:"32px 22px",textAlign:"center"}}>
             <div style={{fontSize:40,marginBottom:12}}>📧</div>
-            <div style={{fontSize:16,fontWeight:700,color:S.accent,marginBottom:8}}>Email queued</div>
+            <div style={{fontSize:16,fontWeight:700,color:S.accent,marginBottom:8}}>Request sent</div>
             <div style={{fontSize:13,color:S.textMuted,lineHeight:1.6}}>Request sent to <strong style={{color:S.text}}>{toEmail}</strong>.<br/>You'll be notified when they respond.</div>
             <Btn onClick={onClose} style={{marginTop:20}}>Done</Btn>
           </div>
@@ -618,9 +764,10 @@ const TeeTimeModal=({game,location,adminUser,group,onSend,onClose})=>{
                 <div style={{background:S.infoBg,border:`1px solid ${S.info}33`,borderRadius:8,padding:"10px 14px",fontSize:12,color:S.info,marginBottom:18,lineHeight:1.6}}>
                   📩 The email includes a <strong>one-click response link</strong>. The contact can confirm or offer alternates — response goes straight to your admin inbox.
                 </div>
+                {sendError&&<div style={{background:S.dangerBg,border:`1px solid ${S.danger}44`,borderRadius:8,padding:"10px 14px",marginBottom:14,fontSize:12,color:S.danger}}>{sendError}</div>}
                 <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
                   <Btn variant="ghost" small onClick={()=>setTab("preview")}>Preview</Btn>
-                  <Btn small onClick={handleSend} disabled={!toEmail.includes("@")}>Send Request</Btn>
+                  <Btn small onClick={handleSend} disabled={sending||!toEmail.includes("@")}>{sending?"Sending…":"Send Request"}</Btn>
                 </div>
               </>
             )}
@@ -634,9 +781,10 @@ const TeeTimeModal=({game,location,adminUser,group,onSend,onClose})=>{
                   </div>
                   <span style={{color:S.textMuted,fontFamily:"inherit",fontSize:11}}>{preview}</span>
                 </div>
+                {sendError&&<div style={{background:S.dangerBg,border:`1px solid ${S.danger}44`,borderRadius:8,padding:"10px 14px",marginTop:14,fontSize:12,color:S.danger}}>{sendError}</div>}
                 <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:14}}>
                   <Btn variant="ghost" small onClick={()=>setTab("compose")}>← Edit</Btn>
-                  <Btn small onClick={handleSend} disabled={!toEmail.includes("@")}>Send Request</Btn>
+                  <Btn small onClick={handleSend} disabled={sending||!toEmail.includes("@")}>{sending?"Sending…":"Send Request"}</Btn>
                 </div>
               </>
             )}
@@ -717,7 +865,7 @@ const LocationsTab=({group,onUpdate,superAdmin})=>{
 
   const handleAdd=()=>{
     if(!newLoc.name.trim())return;
-    onUpdate({...group,locations:[...group.locations,{id:"l"+uid(),name:newLoc.name,address:newLoc.address,lat:33.5,lng:-84.5,teeTimeContact:newLoc.teeTimeContact}]});
+    onUpdate({...group,locations:[...group.locations,{id:uid(),name:newLoc.name,address:newLoc.address,lat:33.5,lng:-84.5,teeTimeContact:newLoc.teeTimeContact}]});
     setNewLoc({name:"",address:"",teeTimeContact:{name:"",email:"",phone:""}});
     setAdding(false);
   };
@@ -813,7 +961,7 @@ const GameForm=({game,group,adminUser,onSave,onCancel,onSendRequest})=>{
   const lastReq=game?.teeTimeRequests?.slice(-1)[0];
 
   const handleSave=()=>{
-    const out=isNew?{...form,id:"gm"+uid(),groupId:group.id,registrations:[],waitlist:[],teeTimeRequests:[]}:{...game,...form};
+    const out=isNew?{...form,id:uid(),groupId:group.id,registrations:[],waitlist:[],teeTimeRequests:[]}:{...game,...form};
     onSave(out);setSaved(true);setTimeout(()=>setSaved(false),2000);
   };
 
@@ -839,7 +987,6 @@ const GameForm=({game,group,adminUser,onSave,onCancel,onSendRequest})=>{
         </div>
         <Sel label="Location" value={form.locationId} onChange={v=>sf("locationId",v)} options={group.locations.map(l=>({value:l.id,label:l.name}))}/>
 
-        {/* Tee time contact callout */}
         <div style={{background:hasContact?S.accentSubtle:S.warningBg,border:`1px solid ${hasContact?S.accent+"44":S.warning+"33"}`,borderRadius:10,padding:"12px 14px",marginBottom:14,display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
           <div style={{flex:1,minWidth:160}}>
             <div style={{fontSize:11,fontWeight:700,color:hasContact?S.accent:S.warning,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:3}}>Tee Time Contact</div>
@@ -1134,10 +1281,85 @@ const ProfilePage=({user,groups,games,onUpdateUser})=>{
 // ── APP ROOT ──────────────────────────────────────────────────────────────────
 export default function App(){
   const responseMatch=window.location.pathname.match(/^\/respond\/([^/]+)\/?$/);
-  const [db,setDb]=useState(SEED);
+  const [db,setDb]=useState({users:[],groups:[],games:[]});
   const [userId,setUserId]=useState(null);
   const [page,setPage]=useState("splash");
   const [groupId,setGroupId]=useState(null);
+  const [appLoading,setAppLoading]=useState(true);
+
+  const loadData=async(authUserId)=>{
+    try{
+      // User profile
+      const{data:userRow}=await supabase.from("users").select("*").eq("id",authUserId).single();
+
+      // Group IDs this user belongs to
+      const{data:memRows}=await supabase.from("group_memberships").select("group_id").eq("user_id",authUserId);
+      const groupIds=(memRows||[]).map(m=>m.group_id);
+
+      let users=userRow?[toUiUser(userRow)]:[];
+      let groups=[];
+      let games=[];
+
+      if(groupIds.length>0){
+        // Groups
+        const{data:groupRows}=await supabase.from("groups").select("id,name,description").in("id",groupIds);
+        // Memberships for these groups
+        const{data:allMems}=await supabase.from("group_memberships").select("group_id,user_id,role").in("group_id",groupIds);
+        // Locations for these groups
+        const{data:locRows}=await supabase.from("locations").select("location_id,group_id,name,address,tee_time_contact,is_active").in("group_id",groupIds).neq("is_active",false);
+
+        // All member user IDs (across all groups)
+        const allMemberIds=[...new Set((allMems||[]).map(m=>m.user_id))];
+        if(allMemberIds.length>0){
+          const{data:userRows}=await supabase.from("users").select("id,first_name,last_name,email,phone,handicap,ghin").in("id",allMemberIds);
+          users=(userRows||[]).map(toUiUser);
+        }
+
+        // Assemble groups
+        groups=(groupRows||[]).map(row=>({
+          id:row.id,
+          name:row.name||"",
+          description:row.description||"",
+          locations:(locRows||[]).filter(l=>l.group_id===row.id).map(toUiLocation),
+          memberships:(allMems||[]).filter(m=>m.group_id===row.id).map(m=>({userId:m.user_id,role:m.role||"player"})),
+        }));
+
+        // Games
+        const{data:gameRows}=await supabase.from("games")
+          .select("id,group_id,location_id,description,rules,max_players,pairing_method,assign_players,recurring,recurrence,day_of_week,first_tee_time,scheduled_date")
+          .in("group_id",groupIds).neq("is_active",false);
+
+        const gameIds=(gameRows||[]).map(g=>g.id);
+        let regRows=[];
+        let ttrRows=[];
+        if(gameIds.length>0){
+          const{data:r}=await supabase.from("game_registrations").select("game_id,user_id,status,position").in("game_id",gameIds);
+          const{data:t}=await supabase.from("tee_time_requests").select("response_token_hash,game_id,requested_time,to_pro_shop_name,to_pro_shop_email,status,response,sent_at").in("game_id",gameIds);
+          regRows=r||[];
+          ttrRows=t||[];
+        }
+        games=(gameRows||[]).map(row=>toUiGame(row,regRows,ttrRows));
+      }
+
+      setDb({users,groups,games});
+    }catch(err){
+      console.error("Data load error:",err);
+    }
+  };
+
+  useEffect(()=>{
+    const{data:{subscription}}=supabase.auth.onAuthStateChange(async(event,session)=>{
+      if(session?.user){
+        setUserId(session.user.id);
+        await loadData(session.user.id);
+      }else{
+        setUserId(null);
+        setDb({users:[],groups:[],games:[]});
+      }
+      setAppLoading(false);
+    });
+    return()=>subscription.unsubscribe();
+  },[]);
 
   const user=db.users.find(u=>u.id===userId);
   const myGroups=db.groups.filter(g=>g.memberships.some(m=>m.userId===userId));
@@ -1147,30 +1369,97 @@ export default function App(){
 
   if(responseMatch)return <PublicTeeTimeResponsePage token={decodeURIComponent(responseMatch[1])}/>;
 
-  if(!userId)return(
-    <AuthPage
-      onAuth={id=>{setUserId(id);setPage("splash");}}
-      onSetDb={newDb=>setDb(newDb)}
-    />
+  if(appLoading)return(
+    <div style={{minHeight:"100vh",background:S.bg,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'DM Sans','Segoe UI',sans-serif"}}>
+      <div style={{textAlign:"center"}}>
+        <div style={{width:48,height:48,borderRadius:12,background:S.accent,display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,margin:"0 auto 16px"}}>⛳</div>
+        <div style={{fontSize:14,color:S.textMuted}}>Loading…</div>
+      </div>
+    </div>
   );
 
-  const handleRegister=gameId=>setDb(d=>({...d,games:d.games.map(g=>{
-    if(g.id!==gameId)return g;
-    const isReg=g.registrations.includes(userId);
-    const isWait=g.waitlist.includes(userId);
-    const isFull=g.registrations.length>=g.maxPlayers;
-    if(isReg)return{...g,registrations:g.registrations.filter(id=>id!==userId)};
-    if(isWait)return{...g,waitlist:g.waitlist.filter(id=>id!==userId)};
-    if(isFull)return{...g,waitlist:[...g.waitlist,userId]};
-    return{...g,registrations:[...g.registrations,userId]};
-  })}));
+  if(!userId)return <AuthPage/>;
 
-  const handleSaveGame=game=>setDb(d=>({...d,games:d.games.some(g=>g.id===game.id)?d.games.map(g=>g.id===game.id?game:g):[...d.games,game]}));
-  const handleDeleteGame=gameId=>setDb(d=>({...d,games:d.games.filter(g=>g.id!==gameId)}));
-  const handleUpdateGroup=updated=>setDb(d=>({...d,groups:d.groups.map(g=>g.id===updated.id?updated:g)}));
-  const handleUpdateUser=updated=>setDb(d=>({...d,users:d.users.map(u=>u.id===updated.id?updated:u)}));
+  // ── mutations ──────────────────────────────────────────────────────────────
 
-  const handleSendRequest=(gameId,request)=>setDb(d=>({...d,games:d.games.map(g=>g.id===gameId?{...g,teeTimeRequests:[...(g.teeTimeRequests||[]),request]}:g)}));
+  const handleRegister=async(gameId)=>{
+    const game=db.games.find(g=>g.id===gameId);
+    if(!game)return;
+    const isReg=game.registrations.includes(userId);
+    const isWait=game.waitlist.includes(userId);
+    const isFull=game.registrations.length>=game.maxPlayers;
+
+    // optimistic UI update
+    setDb(d=>({...d,games:d.games.map(g=>{
+      if(g.id!==gameId)return g;
+      if(isReg)return{...g,registrations:g.registrations.filter(id=>id!==userId)};
+      if(isWait)return{...g,waitlist:g.waitlist.filter(id=>id!==userId)};
+      if(isFull)return{...g,waitlist:[...g.waitlist,userId]};
+      return{...g,registrations:[...g.registrations,userId]};
+    })}));
+
+    // persist
+    if(isReg||isWait){
+      await supabase.from("game_registrations").delete().eq("game_id",gameId).eq("user_id",userId);
+    }else{
+      const status=isFull?["waitlisted"]:["registered"];
+      const position=isFull?game.waitlist.length+1:null;
+      await supabase.from("game_registrations").upsert({game_id:gameId,user_id:userId,status,position});
+    }
+  };
+
+  const handleSaveGame=async(game)=>{
+    setDb(d=>({...d,games:d.games.some(g=>g.id===game.id)?d.games.map(g=>g.id===game.id?game:g):[...d.games,game]}));
+    const{error}=await supabase.from("games").upsert(toDbGame(game));
+    if(error)console.error("Save game:",error);
+  };
+
+  const handleDeleteGame=async(gameId)=>{
+    setDb(d=>({...d,games:d.games.filter(g=>g.id!==gameId)}));
+    await supabase.from("games").update({is_active:false}).eq("id",gameId);
+  };
+
+  const handleUpdateGroup=async(updated)=>{
+    const current=db.groups.find(g=>g.id===updated.id);
+    setDb(d=>({...d,groups:d.groups.map(g=>g.id===updated.id?updated:g)}));
+
+    await supabase.from("groups").update({name:updated.name,description:updated.description}).eq("id",updated.id);
+
+    if(current){
+      // Sync locations
+      const currentLocIds=new Set(current.locations.map(l=>l.id));
+      const updatedLocIds=new Set(updated.locations.map(l=>l.id));
+      for(const l of current.locations){
+        if(!updatedLocIds.has(l.id))await supabase.from("locations").update({is_active:false}).eq("location_id",l.id);
+      }
+      for(const l of updated.locations){
+        await supabase.from("locations").upsert(toDbLocation(l,updated.id));
+      }
+
+      // Sync memberships
+      const currentMemMap=new Map(current.memberships.map(m=>[m.userId,m.role]));
+      const updatedMemMap=new Map(updated.memberships.map(m=>[m.userId,m.role]));
+      for(const[uid2,role]of updatedMemMap){
+        if(currentMemMap.get(uid2)!==role)await supabase.from("group_memberships").upsert({group_id:updated.id,user_id:uid2,role});
+      }
+      for(const[uid2]of currentMemMap){
+        if(!updatedMemMap.has(uid2))await supabase.from("group_memberships").delete().eq("group_id",updated.id).eq("user_id",uid2);
+      }
+    }
+  };
+
+  const handleUpdateUser=async(updated)=>{
+    setDb(d=>({...d,users:d.users.map(u=>u.id===updated.id?updated:u)}));
+    await supabase.from("users").update({
+      first_name:updated.firstName,last_name:updated.lastName,
+      email:updated.email,phone:updated.phone,
+      handicap:updated.handicap,ghin:updated.ghin||null,
+    }).eq("id",updated.id);
+  };
+
+  const handleSendRequest=(gameId,request)=>{
+    setDb(d=>({...d,games:d.games.map(g=>g.id===gameId?{...g,teeTimeRequests:[...(g.teeTimeRequests||[]),request]}:g)}));
+  };
 
   const handleSimulateResponse=(gameId,requestId)=>setDb(d=>({...d,games:d.games.map(g=>{
     if(g.id!==gameId)return g;
@@ -1196,9 +1485,17 @@ export default function App(){
         ::-webkit-scrollbar{width:6px;}::-webkit-scrollbar-thumb{background:#2a3f2c;border-radius:3px;}
         textarea{resize:vertical;}select option{background:#132016;}
       `}</style>
-      {group&&<TopNav page={page} setPage={setPage} user={user} group={group} groups={myGroups} onGroupChange={id=>{setGroupId(id);setPage("splash");}} onSignOut={()=>{setUserId(null);setGroupId(null);setPage("splash");}}/>}
-      {page==="splash"&&group&&<SplashPage group={group} user={user} users={db.users} games={db.games} onRegister={handleRegister}/>}
-      {page==="admin"&&group&&canEdit(group,userId)&&<AdminPage group={group} user={user} users={db.users} games={db.games} onUpdateGroup={handleUpdateGroup} onSaveGame={handleSaveGame} onDeleteGame={handleDeleteGame} onSendRequest={handleSendRequest} onSimulateResponse={handleSimulateResponse}/>}
+      {group&&user&&<TopNav page={page} setPage={setPage} user={user} group={group} groups={myGroups} onGroupChange={id=>{setGroupId(id);setPage("splash");}} onSignOut={async()=>{await supabase.auth.signOut();setUserId(null);setGroupId(null);setPage("splash");}}/>}
+      {!group&&user&&myGroups.length===0&&(
+        <div style={{maxWidth:480,margin:"80px auto",padding:"0 16px",textAlign:"center"}}>
+          <div style={{fontSize:32,marginBottom:16}}>⛳</div>
+          <div style={{fontSize:20,fontWeight:700,color:S.text,marginBottom:8}}>No groups yet</div>
+          <div style={{fontSize:14,color:S.textMuted,lineHeight:1.7,marginBottom:24}}>Sign out and register to create or join a group, or ask a group owner to add you.</div>
+          <Btn variant="danger" onClick={async()=>{await supabase.auth.signOut();setUserId(null);}}>Sign out</Btn>
+        </div>
+      )}
+      {page==="splash"&&group&&user&&<SplashPage group={group} user={user} users={db.users} games={db.games} onRegister={handleRegister}/>}
+      {page==="admin"&&group&&user&&canEdit(group,userId)&&<AdminPage group={group} user={user} users={db.users} games={db.games} onUpdateGroup={handleUpdateGroup} onSaveGame={handleSaveGame} onDeleteGame={handleDeleteGame} onSendRequest={handleSendRequest} onSimulateResponse={handleSimulateResponse}/>}
       {page==="profile"&&user&&<ProfilePage user={user} groups={db.groups} games={db.games} onUpdateUser={handleUpdateUser}/>}
     </div>
   );
