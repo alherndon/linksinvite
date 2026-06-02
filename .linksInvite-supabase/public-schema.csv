@@ -1,0 +1,73 @@
+table_name,column_name,data_type,is_nullable,column_default
+game_registrations,game_id,uuid,NO,gen_random_uuid()
+game_registrations,user_id,uuid,NO,gen_random_uuid()
+game_registrations,status,ARRAY,NO,null
+game_registrations,position,numeric,YES,null
+game_registrations,created_at,timestamp with time zone,YES,null
+game_registrations,updated_at,timestamp with time zone,YES,null
+games,id,uuid,NO,gen_random_uuid()
+games,group_id,uuid,NO,gen_random_uuid()
+games,location_id,uuid,YES,gen_random_uuid()
+games,description,text,YES,null
+games,rules,text,YES,null
+games,max_players,numeric,YES,null
+games,pairing_method,ARRAY,NO,null
+games,assign_players,boolean,YES,null
+games,recurring,boolean,YES,null
+games,recurrence,jsonb,YES,null
+games,day_of_week,ARRAY,NO,null
+games,first_tee_time,time with time zone,YES,null
+games,scheduled_date,date,YES,null
+games,is_active,boolean,YES,null
+games,created_at,timestamp with time zone,YES,null
+games,updated_at,timestamp with time zone,YES,null
+group_invites,group_id,uuid,NO,gen_random_uuid()
+group_invites,user_id,uuid,YES,gen_random_uuid()
+group_invites,email,text,NO,'NOT NULL'::text
+group_invites,expires_at,timestamp with time zone,YES,null
+group_invites,accepted_at,timestamp with time zone,YES,null
+group_memberships,group_id,uuid,NO,gen_random_uuid()
+group_memberships,user_id,uuid,NO,gen_random_uuid()
+group_memberships,role,text,YES,null
+locations,location_id,uuid,NO,gen_random_uuid()
+locations,created_at,timestamp with time zone,NO,null
+locations,updated_at,timestamp with time zone,YES,null
+locations,group_id,uuid,YES,gen_random_uuid()
+locations,name,text,YES,null
+locations,address,text,YES,null
+locations,tee_time_contact,text,YES,null
+locations,is_active,boolean,YES,null
+recurring_game_series,id,bigint,NO,null
+recurring_game_series,group_id,uuid,YES,gen_random_uuid()
+recurring_game_series,recurrence,jsonb,YES,null
+recurring_game_series,template_fields,ARRAY,YES,null
+recurring_game_series,next_run_at,timestamp with time zone,YES,null
+recurring_game_series,is_active,boolean,YES,null
+tee_time_requests,response_token_hash,bigint,NO,null
+tee_time_requests,responded_at,timestamp with time zone,YES,null
+tee_time_requests,game_id,uuid,YES,gen_random_uuid()
+tee_time_requests,requested_time,ARRAY,NO,null
+tee_time_requests,to_pro_shop_name,text,YES,null
+tee_time_requests,to_pro_shop_email,text,YES,null
+tee_time_requests,status,text,YES,null
+tee_time_requests,response,text,YES,null
+tee_time_requests,created_at,timestamp with time zone,YES,null
+tee_time_requests,updated_at,timestamp with time zone,YES,null
+tee_time_requests,sent_at,timestamp with time zone,YES,null
+tee_time_requests,expires_at,timestamp with time zone,NO,null
+tee_times,tee_times_id,uuid,NO,gen_random_uuid()
+tee_times,game_id,uuid,YES,gen_random_uuid()
+tee_times,created_at,timestamp with time zone,NO,null
+tee_times,slots,numeric,YES,null
+tee_times,start_time,timestamp with time zone,YES,null
+tee_times,day_of_week,ARRAY,NO,null
+users,id,uuid,NO,gen_random_uuid()
+users,first_name,text,NO,null
+users,last_name,text,YES,null
+users,email,text,YES,'NOT NULL'::text
+users,phone,text,YES,null
+users,password_hash,text,YES,'NOT NULL'::text
+users,handicap,numeric,YES,null
+users,ghin,text,YES,null
+users,created_at,timestamp with time zone,YES,null
+users,updated_at,timestamp with time zone,YES,null
