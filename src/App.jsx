@@ -1123,7 +1123,7 @@ const MembersTab=({group,users,currentUserId,onUpdate,superAdmin})=>{
 };
 
 // ── ADMIN PAGE ────────────────────────────────────────────────────────────────
-const AdminPage=({group,user,users,games,onUpdateGroup,onSaveGame,onDeleteGame,onSendRequest,onSimulateResponse})=>{
+const AdminPage=({group,user,users,games,onUpdateGroup,onSaveGame,onDeleteGame,onSendRequest,onSimulateResponse,onSendGameInvite})=>{
   const [tab,setTab]=useState("games");
   const [showNew,setShowNew]=useState(false);
   const [editingId,setEditingId]=useState(null);
@@ -1177,6 +1177,7 @@ const AdminPage=({group,user,users,games,onUpdateGroup,onSaveGame,onDeleteGame,o
                       <Btn variant="danger" small onClick={()=>onDeleteGame(g.id)}>Delete</Btn>
                     </div>
                   </div>
+                  <GameInvitePanel game={g} group={group} users={users} onSendInvite={onSendGameInvite}/>
                   {g.registrations.length>0&&(
                     <div style={{marginTop:12,paddingTop:12,borderTop:`1px solid ${S.cardBorder}33`}}>
                       <div style={{fontSize:11,color:S.textMuted,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:8}}>Roster</div>
@@ -1222,6 +1223,57 @@ const GroupSettings=({group,onUpdate})=>{
 };
 
 // ── PROFILE PAGE ──────────────────────────────────────────────────────────────
+const GameInvitePanel=({game,group,users,onSendInvite})=>{
+  const memberUsers=group.memberships
+    .map(m=>getUser(users,m.userId))
+    .filter(u=>u?.email);
+  const [selectedUserId,setSelectedUserId]=useState(memberUsers[0]?.id||"");
+  const [sending,setSending]=useState(false);
+  const [message,setMessage]=useState("");
+  const [error,setError]=useState("");
+
+  useEffect(()=>{
+    if(!selectedUserId&&memberUsers[0]?.id)setSelectedUserId(memberUsers[0].id);
+  },[memberUsers.length,selectedUserId]);
+
+  const selectedUser=getUser(memberUsers,selectedUserId);
+  const alreadyIn=game.registrations.includes(selectedUserId)||game.waitlist.includes(selectedUserId);
+
+  const send=async()=>{
+    if(!selectedUser)return;
+    setSending(true);setMessage("");setError("");
+    try{
+      await onSendInvite(game,selectedUser);
+      setMessage(`Invite sent to ${selectedUser.email}`);
+    }catch(err){
+      setError(err.message);
+    }finally{
+      setSending(false);
+    }
+  };
+
+  if(memberUsers.length===0)return null;
+
+  return (
+    <div style={{marginTop:12,padding:"12px 0",borderTop:`1px solid ${S.cardBorder}33`,borderBottom:`1px solid ${S.cardBorder}33`}}>
+      <div style={{fontSize:11,color:S.textMuted,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:8}}>Email Invite</div>
+      <div style={{display:"flex",gap:8,alignItems:"flex-start",flexWrap:"wrap"}}>
+        <select value={selectedUserId} onChange={e=>{setSelectedUserId(e.target.value);setMessage("");setError("");}} style={{flex:"1 1 220px",background:S.surface,border:`1px solid ${S.cardBorder}`,borderRadius:8,padding:"8px 10px",color:S.text,fontSize:13,fontFamily:"inherit"}}>
+          {memberUsers.map(u=>(
+            <option key={u.id} value={u.id}>{fullName(u)} - {u.email}</option>
+          ))}
+        </select>
+        <Btn small onClick={send} disabled={sending||!selectedUser}>
+          {sending?"Sending...":"Send Invite"}
+        </Btn>
+      </div>
+      {alreadyIn&&<div style={{fontSize:11,color:S.warning,marginTop:6}}>This player is already registered or waitlisted. A new response link will still work.</div>}
+      {message&&<div style={{fontSize:12,color:S.accent,marginTop:6}}>{message}</div>}
+      {error&&<div style={{fontSize:12,color:S.danger,marginTop:6}}>{error}</div>}
+    </div>
+  );
+};
+
 const ProfilePage=({user,groups,games,onUpdateUser})=>{
   const [p,setP]=useState({...user,handicap:String(user.handicap)});
   const [saved,setSaved]=useState(false);
@@ -1410,7 +1462,7 @@ export default function App(){
     if(isReg||isWait){
       await supabase.from("game_registrations").delete().eq("game_id",gameId).eq("user_id",userId);
     }else{
-      const status=isFull?["waitlisted"]:["registered"];
+      const status=isFull?"waitlisted":"registered";
       const position=isFull?game.waitlist.length+1:null;
       await supabase.from("game_registrations").upsert({game_id:gameId,user_id:userId,status,position});
     }
@@ -1469,6 +1521,44 @@ export default function App(){
     setDb(d=>({...d,games:d.games.map(g=>g.id===gameId?{...g,teeTimeRequests:[...(g.teeTimeRequests||[]),request]}:g)}));
   };
 
+  const handleSendGameInvite=async(game,recipient)=>{
+    const{data:{session}}=await supabase.auth.getSession();
+    if(!session?.access_token)throw new Error("Sign in again to send email invites.");
+
+    const location=getLoc(group,game.locationId);
+    const subject=`Can you play ${game.day}?`;
+    const body=[
+      `Hi ${recipient.firstName},`,
+      "",
+      `Can you play with ${group.name} on ${game.day}, ${game.date} at ${game.time}?`,
+      location?.name?`Course: ${location.name}`:null,
+      game.description?`Details: ${game.description}`:null,
+      "",
+      "Use one of the response links below to let the group know.",
+    ].filter(Boolean).join("\n");
+
+    const res=await fetch("/api/email/send",{
+      method:"POST",
+      headers:{
+        "Content-Type":"application/json",
+        Authorization:`Bearer ${session.access_token}`,
+      },
+      body:JSON.stringify({
+        groupId:group.id,
+        gameId:game.id,
+        recipientUserId:recipient.id,
+        toEmail:recipient.email,
+        eventType:"game_invite",
+        subject,
+        body,
+        actions:["yes","no","waitlist"],
+      }),
+    });
+    const payload=await res.json().catch(()=>({}));
+    if(!res.ok)throw new Error(payload.error||payload.details||"Unable to send invite");
+    return payload;
+  };
+
   const handleSimulateResponse=(gameId,requestId)=>setDb(d=>({...d,games:d.games.map(g=>{
     if(g.id!==gameId)return g;
     return{...g,teeTimeRequests:(g.teeTimeRequests||[]).map(r=>{
@@ -1503,7 +1593,7 @@ export default function App(){
         </div>
       )}
       {page==="splash"&&group&&user&&<SplashPage group={group} user={user} users={db.users} games={db.games} onRegister={handleRegister}/>}
-      {page==="admin"&&group&&user&&canEdit(group,userId)&&<AdminPage group={group} user={user} users={db.users} games={db.games} onUpdateGroup={handleUpdateGroup} onSaveGame={handleSaveGame} onDeleteGame={handleDeleteGame} onSendRequest={handleSendRequest} onSimulateResponse={handleSimulateResponse}/>}
+      {page==="admin"&&group&&user&&canEdit(group,userId)&&<AdminPage group={group} user={user} users={db.users} games={db.games} onUpdateGroup={handleUpdateGroup} onSaveGame={handleSaveGame} onDeleteGame={handleDeleteGame} onSendRequest={handleSendRequest} onSimulateResponse={handleSimulateResponse} onSendGameInvite={handleSendGameInvite}/>}
       {page==="profile"&&user&&<ProfilePage user={user} groups={db.groups} games={db.games} onUpdateUser={handleUpdateUser}/>}
     </div>
   );
