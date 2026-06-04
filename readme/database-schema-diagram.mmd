@@ -1,0 +1,161 @@
+erDiagram
+  users {
+    uuid id PK
+    text first_name
+    text last_name
+    text email
+  }
+
+  groups {
+    uuid id PK
+    text name
+    text description
+    boolean is_active
+    timestamptz created_at
+    timestamptz updated_at
+  }
+
+  group_memberships {
+    uuid group_id PK, FK
+    uuid user_id PK, FK
+    text role
+  }
+
+  group_invites {
+    uuid id PK
+    uuid group_id FK
+    uuid user_id FK
+    text email
+    timestamptz expires_at
+    timestamptz accepted_at
+  }
+
+  locations {
+    uuid location_id PK
+    uuid group_id FK
+    text name
+    text address
+    jsonb tee_time_contact
+    boolean is_active
+    timestamptz created_at
+    timestamptz updated_at
+  }
+
+  games {
+    uuid id PK
+    uuid group_id FK
+    uuid location_id FK
+    text description
+    text rules
+    integer max_players
+    text pairing_method
+    boolean assign_players
+    boolean recurring
+    jsonb recurrence
+    text day_of_week
+    timetz first_tee_time
+    date scheduled_date
+    boolean is_active
+    timestamptz created_at
+    timestamptz updated_at
+  }
+
+  game_registrations {
+    uuid game_id PK, FK
+    uuid user_id PK, FK
+    text status
+    integer position
+    timestamptz created_at
+    timestamptz updated_at
+  }
+
+  tee_times {
+    uuid tee_times_id PK
+    uuid game_id FK
+    integer slots
+    timestamptz start_time
+    text day_of_week
+    timestamptz created_at
+  }
+
+  tee_time_requests {
+    uuid response_id PK
+    uuid game_id FK
+    text response_token_hash
+    timestamptz requested_time
+    text to_pro_shop_name
+    text to_pro_shop_email
+    text status
+    jsonb response
+    timestamptz responded_at
+    timestamptz sent_at
+    timestamptz expires_at
+    timestamptz created_at
+    timestamptz updated_at
+  }
+
+  recurring_game_series {
+    bigint id PK
+    uuid group_id FK
+    jsonb recurrence
+    array template_fields
+    timestamptz next_run_at
+    boolean is_active
+  }
+
+  notification_events {
+    uuid id PK
+    uuid group_id FK
+    uuid game_id FK
+    uuid recipient_user_id FK
+    text channel
+    text event_type
+    text provider
+    text provider_message_id
+    text to_email
+    text from_email
+    text subject
+    text body
+    text status
+    text response_token_hash
+    text response_action
+    jsonb response_payload
+    timestamptz sent_at
+    timestamptz responded_at
+    timestamptz created_at
+    timestamptz updated_at
+  }
+
+  notification_preferences {
+    uuid user_id PK, FK
+    uuid group_id PK, FK
+    boolean email_enabled
+    boolean game_invites
+    boolean game_reminders
+    boolean tee_time_updates
+  }
+
+  groups ||--o{ group_memberships : has
+  users ||--o{ group_memberships : belongs_to
+
+  groups ||--o{ group_invites : sends
+  users ||--o{ group_invites : receives
+
+  groups ||--o{ locations : owns
+  groups ||--o{ games : schedules
+  locations ||--o{ games : hosts
+
+  games ||--o{ game_registrations : has
+  users ||--o{ game_registrations : registers
+
+  games ||--o{ tee_times : contains
+  games ||--o{ tee_time_requests : requests
+
+  groups ||--o{ recurring_game_series : defines
+
+  groups ||--o{ notification_events : logs
+  games ||--o{ notification_events : triggers
+  users ||--o{ notification_events : receives
+
+  users ||--o{ notification_preferences : configures
+  groups ||--o{ notification_preferences : scopes

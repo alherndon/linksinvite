@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { supabase } from "./supabaseClient";
+import { supabase, supabaseConfigError } from "./supabaseClient";
 
 const S = {
   bg:"#0d1a0e",surface:"#132016",card:"#1a2b1c",cardBorder:"#2a3f2c",
@@ -203,6 +203,22 @@ const TA=({label,value,onChange,rows=3})=>(
     <textarea value={value} onChange={e=>onChange(e.target.value)} rows={rows}
       style={{width:"100%",background:S.surface,border:`1px solid ${S.cardBorder}`,borderRadius:8,padding:"9px 12px",color:S.text,fontSize:13,fontFamily:"inherit",resize:"vertical",outline:"none",boxSizing:"border-box"}}
       onFocus={e=>e.target.style.borderColor=S.accent} onBlur={e=>e.target.style.borderColor=S.cardBorder}/>
+  </div>
+);
+
+const SetupErrorPage=()=>(
+  <div style={{minHeight:"100vh",background:S.bg,color:S.text,fontFamily:"'DM Sans','Segoe UI',sans-serif",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+    <Card style={{maxWidth:520,width:"100%"}}>
+      <div style={{fontSize:24,fontWeight:800,letterSpacing:"-0.03em",marginBottom:6}}>LinksInvite</div>
+      <h1 style={{margin:"0 0 8px",fontSize:20}}>App setup needed</h1>
+      <p style={{margin:"0 0 14px",fontSize:14,color:S.textMuted,lineHeight:1.6}}>
+        The login and registration screen cannot load because the public Supabase environment variables are missing from this deployment.
+      </p>
+      <div style={{background:S.surface,border:`1px solid ${S.cardBorder}`,borderRadius:8,padding:"10px 12px",fontSize:13,color:S.textMuted,lineHeight:1.7}}>
+        Add <strong style={{color:S.text}}>VITE_SUPABASE_URL</strong> and <strong style={{color:S.text}}>VITE_SUPABASE_ANON_KEY</strong> in Vercel, then redeploy.
+      </div>
+      {supabaseConfigError&&<p style={{margin:"12px 0 0",fontSize:12,color:S.danger}}>{supabaseConfigError}</p>}
+    </Card>
   </div>
 );
 
@@ -1408,6 +1424,10 @@ export default function App(){
   };
 
   useEffect(()=>{
+    if(!supabase){
+      setAppLoading(false);
+      return;
+    }
     const{data:{subscription}}=supabase.auth.onAuthStateChange(async(event,session)=>{
       if(session?.user){
         setUserId(session.user.id);
@@ -1428,6 +1448,8 @@ export default function App(){
   useEffect(()=>{if(userId&&!groupId&&myGroups.length>0)setGroupId(myGroups[0].id);},[userId,myGroups.length,groupId]);
 
   if(responseMatch)return <PublicTeeTimeResponsePage token={decodeURIComponent(responseMatch[1])}/>;
+
+  if(!supabase)return <SetupErrorPage/>;
 
   if(appLoading)return(
     <div style={{minHeight:"100vh",background:S.bg,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'DM Sans','Segoe UI',sans-serif"}}>
