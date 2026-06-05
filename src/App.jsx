@@ -36,6 +36,86 @@ const isSA=(group,userId)=>getMem(group,userId)?.role==="superadmin";
 const getUser=(users,id)=>users.find(u=>u.id===id);
 const getLoc=(group,id)=>group.locations.find(l=>l.id===id);
 const groupGames=(games,gid)=>games.filter(g=>g.groupId===gid);
+const SIGNUP_STORAGE_KEY="linksInvite.pendingSignup";
+
+const getAuthRedirectUrl=()=>{
+  const url=new URL(window.location.href);
+  url.pathname="/";
+  url.search="";
+  url.hash="";
+  return url.toString();
+};
+
+const getPendingSignup=authUser=>{
+  let stored=null;
+  try{
+    stored=JSON.parse(localStorage.getItem(SIGNUP_STORAGE_KEY)||"null");
+  }catch{
+    stored=null;
+  }
+  const metadata=authUser?.user_metadata?.linksInviteSignup||null;
+  const pending=stored?.email===authUser?.email?stored:metadata;
+  return pending&&pending.email===authUser?.email?pending:null;
+};
+
+const completePendingSignup=async(authUser,pending)=>{
+  if(!authUser||!pending)return;
+
+  const{error:profileError}=await supabase.from("users").upsert({
+    id:authUser.id,
+    first_name:pending.firstName,
+    last_name:pending.lastName,
+    email:pending.email,
+    phone:pending.phone,
+    handicap:parseFloat(pending.handicap)||0,
+    ghin:pending.ghin||null,
+  });
+  if(profileError)throw profileError;
+
+  const{data:existingMemberships,error:membershipError}=await supabase
+    .from("group_memberships")
+    .select("group_id")
+    .eq("user_id",authUser.id);
+  if(membershipError)throw membershipError;
+  if((existingMemberships||[]).length>0)return;
+
+  if(pending.intent==="create"){
+    const{data:groupData,error:groupError}=await supabase.from("groups").insert({
+      name:pending.groupName,
+      description:pending.groupDescription||"",
+      is_active:true,
+    }).select().single();
+    if(groupError)throw groupError;
+
+    if(pending.locationName){
+      const{error:locationError}=await supabase.from("locations").insert({
+        group_id:groupData.id,
+        name:pending.locationName,
+        address:pending.locationAddress||"",
+        tee_time_contact:JSON.stringify({name:"",email:"",phone:""}),
+        is_active:true,
+      });
+      if(locationError)throw locationError;
+    }
+    const{error:memberError}=await supabase.from("group_memberships").insert({
+      group_id:groupData.id,
+      user_id:authUser.id,
+      role:"superadmin",
+    });
+    if(memberError)throw memberError;
+  }else{
+    const{data:groupData,error:groupFindError}=await supabase.from("groups")
+      .select("id").ilike("name",`%${pending.joinCode}%`).eq("is_active",true).limit(1).single();
+    if(groupFindError||!groupData)throw new Error("Group not found. Check the name and try again.");
+
+    const{error:memberError}=await supabase.from("group_memberships").insert({
+      group_id:groupData.id,
+      user_id:authUser.id,
+      role:"player",
+    });
+    if(memberError)throw memberError;
+  }
+};
 
 // ── DB ↔ UI transforms ────────────────────────────────────────────────────────
 function formatDbDate(d){
@@ -379,44 +459,39 @@ const AuthPage=()=>{
     if(!f.password||f.password.length<6){setErrors({password:"Password must be at least 6 characters"});return;}
     setAuthLoading(true);setAuthError("");
     try{
-      const{data:authData,error:signUpError}=await supabase.auth.signUp({email:f.email,password:f.password});
+      const pendingSignup={
+        firstName:f.firstName.trim(),
+        lastName:f.lastName.trim(),
+        email:f.email.trim(),
+        phone:f.phone.trim(),
+        handicap:f.handicap,
+        ghin:f.ghin||"",
+        intent,
+        groupName:g.name.trim(),
+        groupDescription:g.description||"",
+        locationName:g.locName.trim(),
+        locationAddress:g.locAddress||"",
+        joinCode:joinCode.trim(),
+      };
+      localStorage.setItem(SIGNUP_STORAGE_KEY,JSON.stringify(pendingSignup));
+      const{data:authData,error:signUpError}=await supabase.auth.signUp({
+        email:pendingSignup.email,
+        password:f.password,
+        options:{
+          emailRedirectTo:getAuthRedirectUrl(),
+          data:{linksInviteSignup:pendingSignup},
+        },
+      });
       if(signUpError)throw signUpError;
       const authUserId=authData.user?.id;
       if(!authUserId)throw new Error("Failed to create account — please try again");
-
-      const{error:profileError}=await supabase.from("users").insert({
-        id:authUserId,first_name:f.firstName,last_name:f.lastName,
-        email:f.email,phone:f.phone,handicap:parseFloat(f.handicap)||0,ghin:f.ghin||null,
-      });
-      if(profileError)throw profileError;
-
-      if(intent==="create"){
-        const{data:groupData,error:groupError}=await supabase.from("groups").insert({
-          name:g.name,description:g.description||"",is_active:true,
-        }).select().single();
-        if(groupError)throw groupError;
-
-        if(g.locName){
-          await supabase.from("locations").insert({
-            group_id:groupData.id,name:g.locName,address:g.locAddress||"",
-            tee_time_contact:JSON.stringify({name:"",email:"",phone:""}),is_active:true,
-          });
-        }
-        await supabase.from("group_memberships").insert({
-          group_id:groupData.id,user_id:authUserId,role:"superadmin",
-        });
-      }else{
-        const{data:groupData,error:groupFindError}=await supabase.from("groups")
-          .select("id").ilike("name",`%${joinCode}%`).eq("is_active",true).limit(1).single();
-        if(groupFindError||!groupData){setErrors({join:"Group not found. Check the name and try again."});setAuthLoading(false);return;}
-        await supabase.from("group_memberships").insert({
-          group_id:groupData.id,user_id:authUserId,role:"player",
-        });
-      }
-
       if(!authData.session){
         setConfirmPending(true);
+        return;
       }
+
+      await completePendingSignup(authData.user,pendingSignup);
+      localStorage.removeItem(SIGNUP_STORAGE_KEY);
     }catch(err){
       setAuthError(err.message);
     }finally{
@@ -1428,17 +1503,59 @@ export default function App(){
       setAppLoading(false);
       return;
     }
-    const{data:{subscription}}=supabase.auth.onAuthStateChange(async(event,session)=>{
+    let active=true;
+    let completingSignup=false;
+    const finishSession=async(session)=>{
       if(session?.user){
-        setUserId(session.user.id);
-        await loadData(session.user.id);
+        try{
+          const pendingSignup=getPendingSignup(session.user);
+          if(pendingSignup&&!completingSignup){
+            completingSignup=true;
+            await completePendingSignup(session.user,pendingSignup);
+            localStorage.removeItem(SIGNUP_STORAGE_KEY);
+          }
+          if(!active)return;
+          setUserId(session.user.id);
+          await loadData(session.user.id);
+        }catch(err){
+          completingSignup=false;
+          console.error("Signup completion error:",err);
+          if(active){
+            setUserId(session.user.id);
+            await loadData(session.user.id);
+          }
+        }
       }else{
         setUserId(null);
         setDb({users:[],groups:[],games:[]});
       }
-      setAppLoading(false);
+      if(active)setAppLoading(false);
+    };
+    const{data:{subscription}}=supabase.auth.onAuthStateChange(async(event,session)=>{
+      await finishSession(session);
     });
-    return()=>subscription.unsubscribe();
+    (async()=>{
+      const params=new URLSearchParams(window.location.search);
+      const hashParams=new URLSearchParams(window.location.hash.replace(/^#/,""));
+      if(hashParams.has("access_token")&&hashParams.has("refresh_token")){
+        const{error}=await supabase.auth.setSession({
+          access_token:hashParams.get("access_token"),
+          refresh_token:hashParams.get("refresh_token"),
+        });
+        if(error)console.error("Auth callback error:",error);
+        window.history.replaceState({},document.title,window.location.pathname);
+        return;
+      }
+      if(params.has("code")){
+        const{error}=await supabase.auth.exchangeCodeForSession(params.get("code"));
+        if(error)console.error("Auth callback error:",error);
+        window.history.replaceState({},document.title,window.location.pathname);
+        return;
+      }
+      const{data:{session}}=await supabase.auth.getSession();
+      await finishSession(session);
+    })();
+    return()=>{active=false;subscription.unsubscribe();};
   },[]);
 
   const user=db.users.find(u=>u.id===userId);
