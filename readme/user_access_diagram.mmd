@@ -1,0 +1,53 @@
+erDiagram
+
+    USERS {
+        uuid id PK
+        text email
+        text name
+        timestamp created_at
+    }
+
+    GROUPS {
+        uuid id PK
+        uuid owner_id FK
+        text name
+        timestamp created_at
+    }
+
+    INVITES {
+        uuid id PK
+        uuid sender_id FK
+        uuid recipient_id FK
+        uuid group_id FK
+        text status
+        timestamp created_at
+    }
+
+    TEE_TIMES {
+        uuid id PK
+        uuid creator_id FK
+        uuid group_id FK
+        date play_date
+        time play_time
+        timestamp created_at
+    }
+
+    GAME_REGISTRATIONS {
+        uuid id PK
+        uuid user_id FK
+        uuid tee_time_id FK
+        text status
+        timestamp created_at
+    }
+
+    %% RELATIONSHIPS
+    USERS ||--o{ GROUPS : "owns"
+    USERS ||--o{ INVITES : "sends"
+    USERS ||--o{ INVITES : "receives"
+    USERS ||--o{ TEE_TIMES : "creates"
+    USERS ||--o{ GAME_REGISTRATIONS : "registers"
+
+    GROUPS ||--o{ INVITES : "has"
+    GROUPS ||--o{ TEE_TIMES : "schedules"
+
+    TEE_TIMES ||--o{ GAME_REGISTRATIONS : "has"
