@@ -424,6 +424,7 @@ const AuthPage=()=>{
   const [authLoading,setAuthLoading]=useState(false);
   const [authError,setAuthError]=useState("");
   const [confirmPending,setConfirmPending]=useState(false);
+  const [resendStatus,setResendStatus]=useState("");
   const sf=k=>v=>setF(p=>({...p,[k]:v}));
   const sg=k=>v=>setG(p=>({...p,[k]:v}));
 
@@ -445,7 +446,32 @@ const AuthPage=()=>{
       if(error)throw error;
       // onAuthStateChange in App root takes over
     }catch(err){
-      setAuthError(err.message);
+      const message=err.message||"Unable to sign in.";
+      if(message.toLowerCase().includes("email not confirmed")){
+        setConfirmPending(true);
+        setAuthError("");
+      }else{
+        setAuthError(message);
+      }
+    }finally{
+      setAuthLoading(false);
+    }
+  };
+
+  const resendConfirmation=async()=>{
+    const email=f.email.trim();
+    if(!email){setAuthError("Enter your email address first.");return;}
+    setAuthLoading(true);setAuthError("");setResendStatus("");
+    try{
+      const{error}=await supabase.auth.resend({
+        type:"signup",
+        email,
+        options:{emailRedirectTo:getAuthRedirectUrl()},
+      });
+      if(error)throw error;
+      setResendStatus(`Confirmation email resent to ${email}.`);
+    }catch(err){
+      setAuthError(err.message||"Unable to resend confirmation email.");
     }finally{
       setAuthLoading(false);
     }
@@ -486,6 +512,7 @@ const AuthPage=()=>{
       const authUserId=authData.user?.id;
       if(!authUserId)throw new Error("Failed to create account — please try again");
       if(!authData.session){
+        setResendStatus("");
         setConfirmPending(true);
         return;
       }
@@ -509,7 +536,12 @@ const AuthPage=()=>{
             We sent a confirmation link to <strong style={{color:S.text}}>{f.email}</strong>.<br/>
             Click it to activate your account, then come back to sign in.
           </div>
-          <Btn style={{marginTop:24}} onClick={()=>{setConfirmPending(false);setMode("login");}}>Back to sign in</Btn>
+          {authError&&<div style={{background:S.dangerBg,border:`1px solid ${S.danger}44`,borderRadius:8,padding:"10px 14px",marginTop:16,fontSize:13,color:S.danger}}>{authError}</div>}
+          {resendStatus&&<div style={{background:S.accentSubtle,border:`1px solid ${S.accent}44`,borderRadius:8,padding:"10px 14px",marginTop:16,fontSize:13,color:S.accent}}>{resendStatus}</div>}
+          <div style={{display:"flex",gap:8,marginTop:24}}>
+            <Btn full onClick={resendConfirmation} disabled={authLoading} variant="secondary">{authLoading?"Sending...":"Resend email"}</Btn>
+            <Btn full onClick={()=>{setConfirmPending(false);setMode("login");setAuthError("");setResendStatus("");}}>Back to sign in</Btn>
+          </div>
         </div>
       </div>
     );
@@ -526,7 +558,7 @@ const AuthPage=()=>{
         <Card>
           <div style={{display:"flex",background:S.surface,borderRadius:10,padding:3,marginBottom:24}}>
             {["login","register"].map(m=>(
-              <button key={m} onClick={()=>{setMode(m);setStep(1);setErrors({});setAuthError("");}} style={{flex:1,padding:"8px 0",borderRadius:8,border:"none",fontFamily:"inherit",fontSize:13,fontWeight:600,cursor:"pointer",background:mode===m?S.card:"transparent",color:mode===m?S.accent:S.textMuted,textTransform:"capitalize"}}>{m}</button>
+              <button key={m} onClick={()=>{setMode(m);setStep(1);setErrors({});setAuthError("");setResendStatus("");}} style={{flex:1,padding:"8px 0",borderRadius:8,border:"none",fontFamily:"inherit",fontSize:13,fontWeight:600,cursor:"pointer",background:mode===m?S.card:"transparent",color:mode===m?S.accent:S.textMuted,textTransform:"capitalize"}}>{m}</button>
             ))}
           </div>
 
