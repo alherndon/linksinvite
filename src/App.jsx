@@ -1,30 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase, supabaseConfigError } from "./supabaseClient";
 
-function App() {
-
-  // 2. INSERT THIS SNIPPET RIGHT HERE
-  useEffect(() => {
-    const hash = window.location.hash;
-
-    if (hash.includes('access_token')) {
-      supabase.auth.getSession().then(({ data }) => {
-        console.log('Session restored:', data.session);
-      });
-    }
-  }, []);
-
-  // 3. Your existing code continues below
-  return (
-    <>
-      {/* your existing JSX */}
-    </>
-  );
-}
-
-export default App;
-
-
 const S = {
   bg:"#0d1a0e",surface:"#132016",card:"#1a2b1c",cardBorder:"#2a3f2c",
   accent:"#4ade80",accentDim:"#22c55e",accentSubtle:"#1a3321",
