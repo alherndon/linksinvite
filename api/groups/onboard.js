@@ -39,6 +39,7 @@ export default async function handler(req, res) {
   const adminSupabase = getAdminSupabaseClient();
   const userId = authData.user.id;
   const action = normalizeText(req.body?.action);
+  let createdGroupId = null;
 
   try {
     if (action === 'create') {
@@ -64,9 +65,11 @@ export default async function handler(req, res) {
       if (groupError) {
         throw groupError;
       }
+      createdGroupId = groupData.id;
 
+      let locationData = null;
       if (locationName) {
-        const { error: locationError } = await adminSupabase
+        const { data, error: locationError } = await adminSupabase
           .from('locations')
           .insert({
             group_id: groupData.id,
@@ -74,26 +77,41 @@ export default async function handler(req, res) {
             address: locationAddress,
             tee_time_contact: JSON.stringify({ name: '', email: '', phone: '' }),
             is_active: true,
-          });
+          })
+          .select('location_id, group_id, name, address, tee_time_contact, is_active')
+          .single();
 
         if (locationError) {
           throw locationError;
         }
+        locationData = data;
       }
 
       const { error: memberError } = await adminSupabase
         .from('group_memberships')
-        .insert({
+        .upsert({
           group_id: groupData.id,
           user_id: userId,
           role: 'superadmin',
+        }, {
+          onConflict: 'group_id,user_id',
         });
 
       if (memberError) {
         throw memberError;
       }
 
-      return res.status(201).json({ data: { groupId: groupData.id } });
+      return res.status(201).json({
+        data: {
+          group: {
+            id: groupData.id,
+            name: groupData.name,
+            description: groupData.description || '',
+            locations: locationData ? [locationData] : [],
+            memberships: [{ userId, role: 'superadmin' }],
+          },
+        },
+      });
     }
 
     if (action === 'join') {
@@ -105,7 +123,7 @@ export default async function handler(req, res) {
 
       const { data: groupData, error: groupFindError } = await adminSupabase
         .from('groups')
-        .select('id')
+        .select('id, name, description')
         .ilike('name', `%${joinCode}%`)
         .eq('is_active', true)
         .limit(1)
@@ -119,21 +137,58 @@ export default async function handler(req, res) {
 
       const { error: memberError } = await adminSupabase
         .from('group_memberships')
-        .insert({
+        .upsert({
           group_id: groupData.id,
           user_id: userId,
           role: 'player',
+        }, {
+          onConflict: 'group_id,user_id',
         });
 
       if (memberError) {
         throw memberError;
       }
 
-      return res.status(200).json({ data: { groupId: groupData.id } });
+      const { data: locationRows, error: locationError } = await adminSupabase
+        .from('locations')
+        .select('location_id, group_id, name, address, tee_time_contact, is_active')
+        .eq('group_id', groupData.id)
+        .neq('is_active', false);
+
+      if (locationError) {
+        throw locationError;
+      }
+
+      return res.status(200).json({
+        data: {
+          group: {
+            id: groupData.id,
+            name: groupData.name,
+            description: groupData.description || '',
+            locations: locationRows || [],
+            memberships: [{ userId, role: 'player' }],
+          },
+        },
+      });
     }
 
     return res.status(400).json({ error: 'Action must be create or join' });
   } catch (error) {
+    if (createdGroupId) {
+      await adminSupabase
+        .from('locations')
+        .delete()
+        .eq('group_id', createdGroupId);
+      await adminSupabase
+        .from('group_memberships')
+        .delete()
+        .eq('group_id', createdGroupId);
+      await adminSupabase
+        .from('groups')
+        .delete()
+        .eq('id', createdGroupId);
+    }
+
     return res.status(500).json({
       error: 'Unable to update your groups',
       details: error.message,

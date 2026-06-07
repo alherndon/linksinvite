@@ -153,6 +153,7 @@ const toUiUser=row=>({
   ghin:row.ghin||"",
 });
 function parseTeeTimeContact(raw){
+  if(raw&&typeof raw==="object")return raw;
   try{return JSON.parse(raw||"{}");}catch{return{name:"",email:"",phone:""};}
 }
 const toUiLocation=row=>({
@@ -1757,6 +1758,24 @@ export default function App(){
     }).eq("id",updated.id);
   };
 
+  const applyOnboardedGroup=onboardedGroup=>{
+    const uiGroup={
+      id:onboardedGroup.id,
+      name:onboardedGroup.name||"",
+      description:onboardedGroup.description||"",
+      locations:(onboardedGroup.locations||[]).map(toUiLocation),
+      memberships:onboardedGroup.memberships||[{userId,role:"player"}],
+    };
+    setDb(d=>({
+      ...d,
+      groups:d.groups.some(g=>g.id===uiGroup.id)
+        ? d.groups.map(g=>g.id===uiGroup.id?uiGroup:g)
+        : [...d.groups,uiGroup],
+    }));
+    setGroupId(uiGroup.id);
+    setPage("splash");
+  };
+
   const handleCreateFirstGroup=async({name,description,locationName,locationAddress})=>{
     const{data:{session}}=await supabase.auth.getSession();
     if(!session?.access_token)throw new Error("Sign in again to create a group.");
@@ -1777,10 +1796,7 @@ export default function App(){
     });
     const payload=await res.json().catch(()=>({}));
     if(!res.ok)throw new Error(payload.error||payload.details||"Unable to create group");
-
-    await loadData(userId);
-    setGroupId(payload.data.groupId);
-    setPage("splash");
+    applyOnboardedGroup(payload.data.group);
   };
 
   const handleJoinFirstGroup=async(joinCode)=>{
@@ -1797,10 +1813,7 @@ export default function App(){
     });
     const payload=await res.json().catch(()=>({}));
     if(!res.ok)throw new Error(payload.error||payload.details||"Unable to join group");
-
-    await loadData(userId);
-    setGroupId(payload.data.groupId);
-    setPage("splash");
+    applyOnboardedGroup(payload.data.group);
   };
 
   const handleSendRequest=(gameId,request)=>{
