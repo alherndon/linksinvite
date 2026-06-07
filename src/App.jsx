@@ -624,7 +624,7 @@ const AuthPage=()=>{
   );
 };
 
-const NoGroupsPage=({user,onCreateGroup,onJoinGroup,onSignOut})=>{
+const NoGroupsPage=({user,loadError,onCreateGroup,onJoinGroup,onSignOut})=>{
   const [mode,setMode]=useState("create");
   const [groupName,setGroupName]=useState("");
   const [description,setDescription]=useState("");
@@ -669,6 +669,7 @@ const NoGroupsPage=({user,onCreateGroup,onJoinGroup,onSignOut})=>{
             You're signed in as <strong style={{color:S.text}}>{user.email}</strong>. Create a group or join an existing one to open the app navigation.
           </div>
         </div>
+        {loadError&&<div style={{background:S.warningBg,border:`1px solid ${S.warning}44`,borderRadius:8,padding:"10px 14px",marginBottom:14,fontSize:13,color:S.warning,lineHeight:1.5}}>{loadError}</div>}
         <div style={{display:"flex",background:S.surface,borderRadius:10,padding:3,marginBottom:18}}>
           {["create","join"].map(m=>(
             <button key={m} onClick={()=>{setMode(m);setError("");setMessage("");}} style={{flex:1,padding:"8px 0",borderRadius:8,border:"none",fontFamily:"inherit",fontSize:13,fontWeight:600,cursor:"pointer",background:mode===m?S.card:"transparent",color:mode===m?S.accent:S.textMuted,textTransform:"capitalize"}}>{m}</button>
@@ -1536,67 +1537,28 @@ export default function App(){
   const responseMatch=window.location.pathname.match(/^\/respond\/([^/]+)\/?$/);
   const [db,setDb]=useState({users:[],groups:[],games:[]});
   const [userId,setUserId]=useState(null);
+  const [authUser,setAuthUser]=useState(null);
   const [page,setPage]=useState("splash");
   const [groupId,setGroupId]=useState(null);
   const [appLoading,setAppLoading]=useState(true);
+  const [loadError,setLoadError]=useState("");
 
   const loadData=async(authUserId)=>{
     try{
-      // User profile
-      const{data:userRow}=await supabase.from("users").select("*").eq("id",authUserId).single();
+      setLoadError("");
+      const{data:{session}}=await supabase.auth.getSession();
+      if(!session?.access_token)throw new Error("Sign in again to load your groups.");
 
-      // Group IDs this user belongs to
-      const{data:memRows}=await supabase.from("group_memberships").select("group_id").eq("user_id",authUserId);
-      const groupIds=(memRows||[]).map(m=>m.group_id);
-
-      let users=userRow?[toUiUser(userRow)]:[];
-      let groups=[];
-      let games=[];
-
-      if(groupIds.length>0){
-        // Groups
-        const{data:groupRows}=await supabase.from("groups").select("id,name,description").in("id",groupIds);
-        // Memberships for these groups
-        const{data:allMems}=await supabase.from("group_memberships").select("group_id,user_id,role").in("group_id",groupIds);
-        // Locations for these groups
-        const{data:locRows}=await supabase.from("locations").select("location_id,group_id,name,address,tee_time_contact,is_active").in("group_id",groupIds).neq("is_active",false);
-
-        // All member user IDs (across all groups)
-        const allMemberIds=[...new Set((allMems||[]).map(m=>m.user_id))];
-        if(allMemberIds.length>0){
-          const{data:userRows}=await supabase.from("users").select("id,first_name,last_name,email,phone,handicap,ghin").in("id",allMemberIds);
-          users=(userRows||[]).map(toUiUser);
-        }
-
-        // Assemble groups
-        groups=(groupRows||[]).map(row=>({
-          id:row.id,
-          name:row.name||"",
-          description:row.description||"",
-          locations:(locRows||[]).filter(l=>l.group_id===row.id).map(toUiLocation),
-          memberships:(allMems||[]).filter(m=>m.group_id===row.id).map(m=>({userId:m.user_id,role:m.role||"player"})),
-        }));
-
-        // Games
-        const{data:gameRows}=await supabase.from("games")
-          .select("id,group_id,location_id,description,rules,max_players,pairing_method,assign_players,recurring,recurrence,day_of_week,first_tee_time,scheduled_date")
-          .in("group_id",groupIds).neq("is_active",false);
-
-        const gameIds=(gameRows||[]).map(g=>g.id);
-        let regRows=[];
-        let ttrRows=[];
-        if(gameIds.length>0){
-          const{data:r}=await supabase.from("game_registrations").select("game_id,user_id,status,position").in("game_id",gameIds);
-          const{data:t}=await supabase.from("tee_time_requests").select("response_token_hash,game_id,requested_time,to_pro_shop_name,to_pro_shop_email,status,response,sent_at").in("game_id",gameIds);
-          regRows=r||[];
-          ttrRows=t||[];
-        }
-        games=(gameRows||[]).map(row=>toUiGame(row,regRows,ttrRows));
-      }
-
-      setDb({users,groups,games});
+      const res=await fetch("/api/groups/mine",{
+        headers:{Authorization:`Bearer ${session.access_token}`},
+      });
+      const payload=await res.json().catch(()=>({}));
+      if(!res.ok)throw new Error(payload.error||payload.details||"Unable to load your groups.");
+      setDb(payload.data||{users:[],groups:[],games:[]});
     }catch(err){
       console.error("Data load error:",err);
+      setLoadError(err.message||"Unable to load your groups.");
+      setDb({users:[],groups:[],games:[]});
     }
   };
 
@@ -1609,6 +1571,7 @@ export default function App(){
     let completingSignup=false;
     const finishSession=async(session)=>{
       if(session?.user){
+        setAuthUser(session.user);
         try{
           const pendingSignup=getPendingSignup(session.user);
           if(pendingSignup&&!completingSignup){
@@ -1629,6 +1592,8 @@ export default function App(){
         }
       }else{
         setUserId(null);
+        setAuthUser(null);
+        setLoadError("");
         setDb({users:[],groups:[],games:[]});
       }
       if(active)setAppLoading(false);
@@ -1660,11 +1625,28 @@ export default function App(){
     return()=>{active=false;subscription.unsubscribe();};
   },[]);
 
-  const user=db.users.find(u=>u.id===userId);
+  const user=db.users.find(u=>u.id===userId)||(
+    userId&&authUser?{
+      id:userId,
+      firstName:"",
+      lastName:"",
+      email:authUser.email||"",
+      phone:"",
+      handicap:0,
+      ghin:"",
+    }:null
+  );
   const myGroups=db.groups.filter(g=>g.memberships.some(m=>m.userId===userId));
   const group=db.groups.find(g=>g.id===groupId);
 
-  useEffect(()=>{if(userId&&!groupId&&myGroups.length>0)setGroupId(myGroups[0].id);},[userId,myGroups.length,groupId]);
+  useEffect(()=>{
+    if(!userId)return;
+    if(myGroups.length===0){
+      if(groupId)setGroupId(null);
+      return;
+    }
+    if(!groupId||!myGroups.some(g=>g.id===groupId))setGroupId(myGroups[0].id);
+  },[userId,myGroups.length,groupId]);
 
   if(responseMatch)return <PublicTeeTimeResponsePage token={decodeURIComponent(responseMatch[1])}/>;
 
@@ -1886,6 +1868,7 @@ export default function App(){
       {!group&&user&&myGroups.length===0&&(
         <NoGroupsPage
           user={user}
+          loadError={loadError}
           onCreateGroup={handleCreateFirstGroup}
           onJoinGroup={handleJoinFirstGroup}
           onSignOut={async()=>{await supabase.auth.signOut();setUserId(null);setGroupId(null);setPage("splash");}}
