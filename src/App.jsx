@@ -627,6 +627,79 @@ const AuthPage=()=>{
   );
 };
 
+const NoGroupsPage=({user,onCreateGroup,onJoinGroup,onSignOut})=>{
+  const [mode,setMode]=useState("create");
+  const [groupName,setGroupName]=useState("");
+  const [description,setDescription]=useState("");
+  const [locationName,setLocationName]=useState("");
+  const [locationAddress,setLocationAddress]=useState("");
+  const [joinCode,setJoinCode]=useState("");
+  const [message,setMessage]=useState("");
+  const [error,setError]=useState("");
+  const [loading,setLoading]=useState(false);
+
+  const submit=async()=>{
+    setError("");setMessage("");
+    if(mode==="create"&&!groupName.trim()){setError("Group name is required.");return;}
+    if(mode==="join"&&!joinCode.trim()){setError("Enter a group name or invite code.");return;}
+    setLoading(true);
+    try{
+      if(mode==="create"){
+        await onCreateGroup({
+          name:groupName.trim(),
+          description:description.trim(),
+          locationName:locationName.trim(),
+          locationAddress:locationAddress.trim(),
+        });
+      }else{
+        await onJoinGroup(joinCode.trim());
+        setMessage("Group joined.");
+      }
+    }catch(err){
+      setError(err.message||"Unable to update your groups.");
+    }finally{
+      setLoading(false);
+    }
+  };
+
+  return(
+    <div style={{maxWidth:520,margin:"72px auto",padding:"0 16px"}}>
+      <Card>
+        <div style={{textAlign:"center",marginBottom:22}}>
+          <div style={{fontSize:32,marginBottom:12}}>⛳</div>
+          <div style={{fontSize:22,fontWeight:800,color:S.text,marginBottom:6}}>Set up your first group</div>
+          <div style={{fontSize:14,color:S.textMuted,lineHeight:1.6}}>
+            You're signed in as <strong style={{color:S.text}}>{user.email}</strong>. Create a group or join an existing one to open the app navigation.
+          </div>
+        </div>
+        <div style={{display:"flex",background:S.surface,borderRadius:10,padding:3,marginBottom:18}}>
+          {["create","join"].map(m=>(
+            <button key={m} onClick={()=>{setMode(m);setError("");setMessage("");}} style={{flex:1,padding:"8px 0",borderRadius:8,border:"none",fontFamily:"inherit",fontSize:13,fontWeight:600,cursor:"pointer",background:mode===m?S.card:"transparent",color:mode===m?S.accent:S.textMuted,textTransform:"capitalize"}}>{m}</button>
+          ))}
+        </div>
+        {error&&<div style={{background:S.dangerBg,border:`1px solid ${S.danger}44`,borderRadius:8,padding:"10px 14px",marginBottom:14,fontSize:13,color:S.danger}}>{error}</div>}
+        {message&&<div style={{background:S.accentSubtle,border:`1px solid ${S.accent}44`,borderRadius:8,padding:"10px 14px",marginBottom:14,fontSize:13,color:S.accent}}>{message}</div>}
+        {mode==="create"?(
+          <>
+            <Inp label="Group name" value={groupName} onChange={setGroupName} required placeholder="Saturday Golf Crew"/>
+            <TA label="Description" value={description} onChange={setDescription} rows={2}/>
+            <Divider/>
+            <SecTitle>Optional Home Course</SecTitle>
+            <Inp label="Course name" value={locationName} onChange={setLocationName} placeholder="Newnan Country Club"/>
+            <Inp label="Address" value={locationAddress} onChange={setLocationAddress} placeholder="200 CC Dr, Newnan, GA"/>
+          </>
+        ):(
+          <Inp label="Group name or invite code" value={joinCode} onChange={setJoinCode} required placeholder="Search by group name"/>
+        )}
+        <div style={{display:"flex",gap:8,marginTop:8}}>
+          <Btn full onClick={submit} disabled={loading}>{loading?"Saving...":mode==="create"?"Create group":"Join group"}</Btn>
+          <Btn variant="danger" onClick={onSignOut} disabled={loading}>Sign out</Btn>
+        </div>
+      </Card>
+    </div>
+  );
+};
+
 // ── NAV ───────────────────────────────────────────────────────────────────────
 const TopNav=({page,setPage,user,group,groups,onGroupChange,onSignOut})=>{
   const [open,setOpen]=useState(false);
@@ -1688,6 +1761,54 @@ export default function App(){
     }).eq("id",updated.id);
   };
 
+  const handleCreateFirstGroup=async({name,description,locationName,locationAddress})=>{
+    const{data:groupData,error:groupError}=await supabase.from("groups").insert({
+      name,
+      description:description||"",
+      is_active:true,
+    }).select().single();
+    if(groupError)throw groupError;
+
+    if(locationName){
+      const{error:locationError}=await supabase.from("locations").insert({
+        group_id:groupData.id,
+        name:locationName,
+        address:locationAddress||"",
+        tee_time_contact:JSON.stringify({name:"",email:"",phone:""}),
+        is_active:true,
+      });
+      if(locationError)throw locationError;
+    }
+
+    const{error:memberError}=await supabase.from("group_memberships").insert({
+      group_id:groupData.id,
+      user_id:userId,
+      role:"superadmin",
+    });
+    if(memberError)throw memberError;
+
+    await loadData(userId);
+    setGroupId(groupData.id);
+    setPage("splash");
+  };
+
+  const handleJoinFirstGroup=async(joinCode)=>{
+    const{data:groupData,error:groupFindError}=await supabase.from("groups")
+      .select("id").ilike("name",`%${joinCode}%`).eq("is_active",true).limit(1).single();
+    if(groupFindError||!groupData)throw new Error("Group not found. Check the name and try again.");
+
+    const{error:memberError}=await supabase.from("group_memberships").insert({
+      group_id:groupData.id,
+      user_id:userId,
+      role:"player",
+    });
+    if(memberError)throw memberError;
+
+    await loadData(userId);
+    setGroupId(groupData.id);
+    setPage("splash");
+  };
+
   const handleSendRequest=(gameId,request)=>{
     setDb(d=>({...d,games:d.games.map(g=>g.id===gameId?{...g,teeTimeRequests:[...(g.teeTimeRequests||[]),request]}:g)}));
   };
@@ -1756,12 +1877,12 @@ export default function App(){
       `}</style>
       {group&&user&&<TopNav page={page} setPage={setPage} user={user} group={group} groups={myGroups} onGroupChange={id=>{setGroupId(id);setPage("splash");}} onSignOut={async()=>{await supabase.auth.signOut();setUserId(null);setGroupId(null);setPage("splash");}}/>}
       {!group&&user&&myGroups.length===0&&(
-        <div style={{maxWidth:480,margin:"80px auto",padding:"0 16px",textAlign:"center"}}>
-          <div style={{fontSize:32,marginBottom:16}}>⛳</div>
-          <div style={{fontSize:20,fontWeight:700,color:S.text,marginBottom:8}}>No groups yet</div>
-          <div style={{fontSize:14,color:S.textMuted,lineHeight:1.7,marginBottom:24}}>Sign out and register to create or join a group, or ask a group owner to add you.</div>
-          <Btn variant="danger" onClick={async()=>{await supabase.auth.signOut();setUserId(null);}}>Sign out</Btn>
-        </div>
+        <NoGroupsPage
+          user={user}
+          onCreateGroup={handleCreateFirstGroup}
+          onJoinGroup={handleJoinFirstGroup}
+          onSignOut={async()=>{await supabase.auth.signOut();setUserId(null);setGroupId(null);setPage("splash");}}
+        />
       )}
       {page==="splash"&&group&&user&&<SplashPage group={group} user={user} users={db.users} games={db.games} onRegister={handleRegister}/>}
       {page==="admin"&&group&&user&&canEdit(group,userId)&&<AdminPage group={group} user={user} users={db.users} games={db.games} onUpdateGroup={handleUpdateGroup} onSaveGame={handleSaveGame} onDeleteGame={handleDeleteGame} onSendRequest={handleSendRequest} onSimulateResponse={handleSimulateResponse} onSendGameInvite={handleSendGameInvite}/>}
