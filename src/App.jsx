@@ -170,7 +170,7 @@ function parseResponse(raw){
 const toUiTTR=row=>({
   id:String(row.response_token_hash||uid()),
   sentAt:row.sent_at?new Date(row.sent_at).toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit"}):"",
-  requestedTimes:row.requested_time||[],
+  requestedTimes:row.requested_time?[new Date(row.requested_time).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit",timeZone:"UTC"})]:[],
   players:0,
   toName:row.to_pro_shop_name||"",
   toEmail:row.to_pro_shop_email||"",
@@ -881,7 +881,7 @@ const TeeTimeModal=({game,location,adminUser,group,onSend,onClose})=>{
       return`${hr}:${m2} ${ap}`;
     });
   };
-  const [times,setTimes]=useState(genTimes().join(", "));
+  const [times,setTimes]=useState(genTimes()[0]||"");
   const [note,setNote]=useState("");
   const [toName,setToName]=useState(contact.name||"");
   const [toEmail,setToEmail]=useState(contact.email||"");
@@ -895,21 +895,21 @@ const TeeTimeModal=({game,location,adminUser,group,onSend,onClose})=>{
   const handleSend=async()=>{
     setSending(true);setSendError("");
     try{
-      const requestedTimes=times.split(",").map(t=>t.trim()).filter(Boolean);
+      const requestedTime=times.trim();
       const{data:{session}}=await supabase.auth.getSession();
       const headers={"Content-Type":"application/json"};
       if(session?.access_token)headers["Authorization"]=`Bearer ${session.access_token}`;
       const res=await fetch("/api/tee_times/request",{
         method:"POST",
         headers,
-        body:JSON.stringify({gameId:game.id,requestedTimes,toProShopName:toName,toProShopEmail:toEmail}),
+        body:JSON.stringify({gameId:game.id,requestedTime,toProShopName:toName,toProShopEmail:toEmail}),
       });
       const body=await res.json();
       if(!res.ok)throw new Error(body.error||"Failed to send request");
       const sentAt=new Date().toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit"});
       onSend({
         id:String(body.data?.response_token_hash||uid()),
-        sentAt,requestedTimes,players:game.maxPlayers,
+        sentAt,requestedTimes:[requestedTime],players:game.maxPlayers,
         toName,toEmail,status:"pending",response:null,
       });
       setSent(true);
@@ -959,7 +959,7 @@ const TeeTimeModal=({game,location,adminUser,group,onSend,onClose})=>{
                 <div style={{background:S.surface,borderRadius:8,padding:"10px 12px",marginBottom:14,fontSize:12,color:S.textMuted}}>
                   {foursomes} foursome{foursomes!==1?"s":""} · {game.maxPlayers} players · starting {game.time}
                 </div>
-                <Inp label="Requested tee times (comma-separated)" value={times} onChange={setTimes} hint="One per foursome — edit as needed"/>
+                <Inp label="Requested tee time" value={times} onChange={setTimes} placeholder="8:00 AM" hint="Single start time for the group"/>
                 <TA label="Additional notes (optional)" value={note} onChange={setNote} rows={2}/>
                 <div style={{background:S.infoBg,border:`1px solid ${S.info}33`,borderRadius:8,padding:"10px 14px",fontSize:12,color:S.info,marginBottom:18,lineHeight:1.6}}>
                   📩 The email includes a <strong>one-click response link</strong>. The contact can confirm or offer alternates — response goes straight to your admin inbox.

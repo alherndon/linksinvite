@@ -15,14 +15,22 @@ function isExpired(expiresAt) {
   return new Date(expiresAt).getTime() <= Date.now();
 }
 
+function formatTimestamp(iso) {
+  if (!iso) return '';
+  return new Date(iso).toLocaleTimeString('en-US', {
+    hour: 'numeric', minute: '2-digit', timeZone: 'UTC',
+  });
+}
+
 function publicRequest(request) {
   return {
     id: request.response_id,
-    requestedTimes: request.requested_time,
+    requestedTimes: request.requested_time ? [formatTimestamp(request.requested_time)] : [],
     toProShopName: request.to_pro_shop_name,
     status: request.status,
     expiresAt: request.expires_at,
     respondedAt: request.responded_at,
+    response: request.response,
   };
 }
 
@@ -30,7 +38,7 @@ async function findRequest(supabase, token) {
   return supabase
     .from('tee_time_requests')
     .select(
-      'response_id, requested_time, to_pro_shop_name, status, expires_at, responded_at'
+      'response_id, requested_time, to_pro_shop_name, status, expires_at, responded_at, response'
     )
     .eq('response_token_hash', hashToken(token))
     .maybeSingle();
@@ -117,7 +125,7 @@ export default async function handler(req, res) {
     .eq('response_id', request.response_id)
     .eq('status', request.status)
     .select(
-      'response_id, requested_time, to_pro_shop_name, status, expires_at, responded_at'
+      'response_id, requested_time, to_pro_shop_name, status, expires_at, responded_at, response, to_pro_shop_email, sent_at'
     )
     .single();
 
