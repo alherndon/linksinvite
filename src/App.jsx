@@ -79,41 +79,37 @@ const completePendingSignup=async(authUser,pending)=>{
   if(membershipError)throw membershipError;
   if((existingMemberships||[]).length>0)return;
 
+  const{data:{session}}=await supabase.auth.getSession();
+  if(!session?.access_token)throw new Error("Sign in again to finish setting up your group.");
+
   if(pending.intent==="create"){
-    const{data:groupData,error:groupError}=await supabase.from("groups").insert({
-      name:pending.groupName,
-      description:pending.groupDescription||"",
-      is_active:true,
-    }).select().single();
-    if(groupError)throw groupError;
-
-    if(pending.locationName){
-      const{error:locationError}=await supabase.from("locations").insert({
-        group_id:groupData.id,
-        name:pending.locationName,
-        address:pending.locationAddress||"",
-        tee_time_contact:JSON.stringify({name:"",email:"",phone:""}),
-        is_active:true,
-      });
-      if(locationError)throw locationError;
-    }
-    const{error:memberError}=await supabase.from("group_memberships").insert({
-      group_id:groupData.id,
-      user_id:authUser.id,
-      role:"superadmin",
+    const res=await fetch("/api/groups/onboard",{
+      method:"POST",
+      headers:{
+        "Content-Type":"application/json",
+        Authorization:`Bearer ${session.access_token}`,
+      },
+      body:JSON.stringify({
+        action:"create",
+        name:pending.groupName,
+        description:pending.groupDescription||"",
+        locationName:pending.locationName,
+        locationAddress:pending.locationAddress||"",
+      }),
     });
-    if(memberError)throw memberError;
+    const payload=await res.json().catch(()=>({}));
+    if(!res.ok)throw new Error(payload.error||payload.details||"Unable to create group");
   }else{
-    const{data:groupData,error:groupFindError}=await supabase.from("groups")
-      .select("id").ilike("name",`%${pending.joinCode}%`).eq("is_active",true).limit(1).single();
-    if(groupFindError||!groupData)throw new Error("Group not found. Check the name and try again.");
-
-    const{error:memberError}=await supabase.from("group_memberships").insert({
-      group_id:groupData.id,
-      user_id:authUser.id,
-      role:"player",
+    const res=await fetch("/api/groups/onboard",{
+      method:"POST",
+      headers:{
+        "Content-Type":"application/json",
+        Authorization:`Bearer ${session.access_token}`,
+      },
+      body:JSON.stringify({action:"join",joinCode:pending.joinCode}),
     });
-    if(memberError)throw memberError;
+    const payload=await res.json().catch(()=>({}));
+    if(!res.ok)throw new Error(payload.error||payload.details||"Unable to join group");
   }
 };
 
@@ -1762,50 +1758,48 @@ export default function App(){
   };
 
   const handleCreateFirstGroup=async({name,description,locationName,locationAddress})=>{
-    const{data:groupData,error:groupError}=await supabase.from("groups").insert({
-      name,
-      description:description||"",
-      is_active:true,
-    }).select().single();
-    if(groupError)throw groupError;
+    const{data:{session}}=await supabase.auth.getSession();
+    if(!session?.access_token)throw new Error("Sign in again to create a group.");
 
-    if(locationName){
-      const{error:locationError}=await supabase.from("locations").insert({
-        group_id:groupData.id,
-        name:locationName,
-        address:locationAddress||"",
-        tee_time_contact:JSON.stringify({name:"",email:"",phone:""}),
-        is_active:true,
-      });
-      if(locationError)throw locationError;
-    }
-
-    const{error:memberError}=await supabase.from("group_memberships").insert({
-      group_id:groupData.id,
-      user_id:userId,
-      role:"superadmin",
+    const res=await fetch("/api/groups/onboard",{
+      method:"POST",
+      headers:{
+        "Content-Type":"application/json",
+        Authorization:`Bearer ${session.access_token}`,
+      },
+      body:JSON.stringify({
+        action:"create",
+        name,
+        description,
+        locationName,
+        locationAddress,
+      }),
     });
-    if(memberError)throw memberError;
+    const payload=await res.json().catch(()=>({}));
+    if(!res.ok)throw new Error(payload.error||payload.details||"Unable to create group");
 
     await loadData(userId);
-    setGroupId(groupData.id);
+    setGroupId(payload.data.groupId);
     setPage("splash");
   };
 
   const handleJoinFirstGroup=async(joinCode)=>{
-    const{data:groupData,error:groupFindError}=await supabase.from("groups")
-      .select("id").ilike("name",`%${joinCode}%`).eq("is_active",true).limit(1).single();
-    if(groupFindError||!groupData)throw new Error("Group not found. Check the name and try again.");
+    const{data:{session}}=await supabase.auth.getSession();
+    if(!session?.access_token)throw new Error("Sign in again to join a group.");
 
-    const{error:memberError}=await supabase.from("group_memberships").insert({
-      group_id:groupData.id,
-      user_id:userId,
-      role:"player",
+    const res=await fetch("/api/groups/onboard",{
+      method:"POST",
+      headers:{
+        "Content-Type":"application/json",
+        Authorization:`Bearer ${session.access_token}`,
+      },
+      body:JSON.stringify({action:"join",joinCode}),
     });
-    if(memberError)throw memberError;
+    const payload=await res.json().catch(()=>({}));
+    if(!res.ok)throw new Error(payload.error||payload.details||"Unable to join group");
 
     await loadData(userId);
-    setGroupId(groupData.id);
+    setGroupId(payload.data.groupId);
     setPage("splash");
   };
 
