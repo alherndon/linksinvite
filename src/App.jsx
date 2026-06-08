@@ -203,11 +203,11 @@ const toDbGame=game=>({
   description:game.description||null,
   rules:game.rules||null,
   max_players:game.maxPlayers,
-  pairing_method:[game.pairingMethod],
+  pairing_method:game.pairingMethod,
   assign_players:game.assignFoursomes,
   recurring:game.recurring,
   recurrence:game.recurrence||null,
-  day_of_week:[game.day],
+  day_of_week:game.day,
   first_tee_time:parseUiTime(game.time),
   scheduled_date:parseUiDate(game.date),
   is_active:true,
@@ -702,7 +702,7 @@ const NoGroupsPage=({user,loadError,onCreateGroup,onJoinGroup,onSignOut})=>{
 };
 
 // ── NAV ───────────────────────────────────────────────────────────────────────
-const GroupsPage=({user,groups,activeGroupId,onCreateGroup,onJoinGroup,onOpenGroup,onOpenAdmin})=>{
+const GroupsPage=({user,groups,activeGroupId,onCreateGroup,onJoinGroup,onOpenGroup,onOpenAddGame})=>{
   const [mode,setMode]=useState("create");
   const [groupName,setGroupName]=useState("");
   const [description,setDescription]=useState("");
@@ -734,7 +734,7 @@ const GroupsPage=({user,groups,activeGroupId,onCreateGroup,onJoinGroup,onOpenGro
           locationName:locationName.trim(),
           locationAddress:locationAddress.trim(),
         });
-        setMessage("Group created. You are the owner and can add games from Admin.");
+        setMessage("Group created. You can add the first game now.");
       }else{
         await onJoinGroup(joinCode.trim());
         setMessage("Group joined.");
@@ -783,7 +783,6 @@ const GroupsPage=({user,groups,activeGroupId,onCreateGroup,onJoinGroup,onOpenGro
         <SecTitle>My Groups</SecTitle>
         {groups.length===0?<p style={{margin:0,fontSize:13,color:S.textMuted}}>You are not in any groups yet.</p>:groups.map(g=>{
           const membership=getMem(g,user.id);
-          const canManage=["superadmin","admin"].includes(membership?.role);
           return(
             <div key={g.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,padding:"12px 0",borderBottom:`1px solid ${S.cardBorder}33`,flexWrap:"wrap"}}>
               <div>
@@ -796,7 +795,7 @@ const GroupsPage=({user,groups,activeGroupId,onCreateGroup,onJoinGroup,onOpenGro
               </div>
               <div style={{display:"flex",gap:8}}>
                 <Btn variant="ghost" small onClick={()=>onOpenGroup(g.id)}>Open Games</Btn>
-                {canManage&&<Btn variant="gold" small onClick={()=>onOpenAdmin(g.id)}>Add Game</Btn>}
+                <Btn variant="gold" small onClick={()=>onOpenAddGame(g.id)}>Add Game</Btn>
               </div>
             </div>
           );
@@ -957,16 +956,27 @@ const GameCard=({game,group,user,users,onRegister})=>{
   );
 };
 
-const SplashPage=({group,user,users,games,onRegister})=>{
+const SplashPage=({group,user,users,games,onRegister,onSaveGame,startNewGame,onNewGameStarted})=>{
+  const [showNew,setShowNew]=useState(false);
   const myGames=groupGames(games,group.id);
   const primaryLoc=group.locations[0];
+  useEffect(()=>{
+    if(startNewGame){
+      setShowNew(true);
+      onNewGameStarted&&onNewGameStarted();
+    }
+  },[startNewGame,onNewGameStarted]);
   return (
     <div style={{maxWidth:680,margin:"0 auto",padding:"24px 16px"}}>
-      <div style={{marginBottom:24}}>
-        <h1 style={{margin:"0 0 4px",fontSize:26,fontWeight:800,color:S.text,letterSpacing:"-0.03em"}}>{group.name}</h1>
-        <p style={{margin:0,fontSize:14,color:S.textMuted}}>{group.description}</p>
+      <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:12,flexWrap:"wrap",marginBottom:24}}>
+        <div>
+          <h1 style={{margin:"0 0 4px",fontSize:26,fontWeight:800,color:S.text,letterSpacing:"-0.03em"}}>{group.name}</h1>
+          <p style={{margin:0,fontSize:14,color:S.textMuted}}>{group.description}</p>
+        </div>
+        <Btn variant="gold" onClick={()=>setShowNew(true)}>+ Add Game</Btn>
       </div>
       {primaryLoc&&<WeatherWidget location={primaryLoc}/>}
+      {showNew&&<GameForm group={group} adminUser={user} onSave={g=>{onSaveGame(g);setShowNew(false);}} onCancel={()=>setShowNew(false)}/>}
       {myGames.length===0?<Card><p style={{color:S.textMuted,textAlign:"center",margin:0}}>No games scheduled yet.</p></Card>:myGames.map(g=><GameCard key={g.id} game={g} group={group} user={user} users={users} onRegister={onRegister}/>)}
     </div>
   );
@@ -1651,6 +1661,7 @@ export default function App(){
   const [authUser,setAuthUser]=useState(null);
   const [page,setPage]=useState("splash");
   const [groupId,setGroupId]=useState(null);
+  const [newGameGroupId,setNewGameGroupId]=useState(null);
   const [appLoading,setAppLoading]=useState(true);
   const [loadError,setLoadError]=useState("");
 
@@ -1804,8 +1815,22 @@ export default function App(){
 
   const handleSaveGame=async(game)=>{
     setDb(d=>({...d,games:d.games.some(g=>g.id===game.id)?d.games.map(g=>g.id===game.id?game:g):[...d.games,game]}));
-    const{error}=await supabase.from("games").upsert(toDbGame(game));
-    if(error)console.error("Save game:",error);
+    try{
+      const{data:{session}}=await supabase.auth.getSession();
+      if(!session?.access_token)throw new Error("Sign in again to save this game.");
+      const res=await fetch("/api/games/save",{
+        method:"POST",
+        headers:{
+          "Content-Type":"application/json",
+          Authorization:`Bearer ${session.access_token}`,
+        },
+        body:JSON.stringify({game:toDbGame(game)}),
+      });
+      const payload=await res.json().catch(()=>({}));
+      if(!res.ok)throw new Error(payload.error||payload.details||"Unable to save game");
+    }catch(error){
+      console.error("Save game:",error);
+    }
   };
 
   const handleDeleteGame=async(gameId)=>{
@@ -1851,7 +1876,7 @@ export default function App(){
     }).eq("id",updated.id);
   };
 
-  const applyOnboardedGroup=(onboardedGroup,nextPage="splash")=>{
+  const applyOnboardedGroup=(onboardedGroup,nextPage="splash",openNewGame=false)=>{
     const uiGroup={
       id:onboardedGroup.id,
       name:onboardedGroup.name||"",
@@ -1867,6 +1892,7 @@ export default function App(){
     }));
     setGroupId(uiGroup.id);
     setPage(nextPage);
+    if(openNewGame)setNewGameGroupId(uiGroup.id);
   };
 
   const handleCreateFirstGroup=async({name,description,locationName,locationAddress})=>{
@@ -1889,7 +1915,7 @@ export default function App(){
     });
     const payload=await res.json().catch(()=>({}));
     if(!res.ok)throw new Error(payload.error||payload.details||"Unable to create group");
-    applyOnboardedGroup(payload.data.group,"admin");
+    applyOnboardedGroup(payload.data.group,"splash",true);
     await loadData(userId);
   };
 
@@ -1987,7 +2013,7 @@ export default function App(){
           onSignOut={async()=>{await supabase.auth.signOut();setUserId(null);setGroupId(null);setPage("splash");}}
         />
       )}
-      {page==="splash"&&group&&user&&<SplashPage group={group} user={user} users={db.users} games={db.games} onRegister={handleRegister}/>}
+      {page==="splash"&&group&&user&&<SplashPage group={group} user={user} users={db.users} games={db.games} onRegister={handleRegister} onSaveGame={handleSaveGame} startNewGame={newGameGroupId===group.id} onNewGameStarted={()=>setNewGameGroupId(null)}/>}
       {page==="groups"&&user&&(
         <GroupsPage
           user={user}
@@ -1996,7 +2022,7 @@ export default function App(){
           onCreateGroup={handleCreateFirstGroup}
           onJoinGroup={handleJoinFirstGroup}
           onOpenGroup={id=>{setGroupId(id);setPage("splash");}}
-          onOpenAdmin={id=>{setGroupId(id);setPage("admin");}}
+          onOpenAddGame={id=>{setGroupId(id);setNewGameGroupId(id);setPage("splash");}}
         />
       )}
       {page==="admin"&&group&&user&&canEdit(group,userId)&&<AdminPage group={group} user={user} users={db.users} games={db.games} onUpdateGroup={handleUpdateGroup} onSaveGame={handleSaveGame} onDeleteGame={handleDeleteGame} onSendRequest={handleSendRequest} onSimulateResponse={handleSimulateResponse} onSendGameInvite={handleSendGameInvite}/>}
