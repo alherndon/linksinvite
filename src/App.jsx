@@ -702,6 +702,110 @@ const NoGroupsPage=({user,loadError,onCreateGroup,onJoinGroup,onSignOut})=>{
 };
 
 // ── NAV ───────────────────────────────────────────────────────────────────────
+const GroupsPage=({user,groups,activeGroupId,onCreateGroup,onJoinGroup,onOpenGroup,onOpenAdmin})=>{
+  const [mode,setMode]=useState("create");
+  const [groupName,setGroupName]=useState("");
+  const [description,setDescription]=useState("");
+  const [locationName,setLocationName]=useState("");
+  const [locationAddress,setLocationAddress]=useState("");
+  const [joinCode,setJoinCode]=useState("");
+  const [message,setMessage]=useState("");
+  const [error,setError]=useState("");
+  const [loading,setLoading]=useState(false);
+
+  const resetForm=()=>{
+    setGroupName("");
+    setDescription("");
+    setLocationName("");
+    setLocationAddress("");
+    setJoinCode("");
+  };
+
+  const submit=async()=>{
+    setError("");setMessage("");
+    if(mode==="create"&&!groupName.trim()){setError("Group name is required.");return;}
+    if(mode==="join"&&!joinCode.trim()){setError("Enter a group name or invite code.");return;}
+    setLoading(true);
+    try{
+      if(mode==="create"){
+        await onCreateGroup({
+          name:groupName.trim(),
+          description:description.trim(),
+          locationName:locationName.trim(),
+          locationAddress:locationAddress.trim(),
+        });
+        setMessage("Group created. You are the owner and can add games from Admin.");
+      }else{
+        await onJoinGroup(joinCode.trim());
+        setMessage("Group joined.");
+      }
+      resetForm();
+    }catch(err){
+      setError(err.message||"Unable to update your groups.");
+    }finally{
+      setLoading(false);
+    }
+  };
+
+  return(
+    <div style={{maxWidth:760,margin:"0 auto",padding:"24px 16px"}}>
+      <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:14,flexWrap:"wrap",marginBottom:22}}>
+        <div>
+          <h1 style={{margin:"0 0 4px",fontSize:22,fontWeight:800,color:S.text,letterSpacing:"-0.02em"}}>Groups</h1>
+          <p style={{margin:0,fontSize:13,color:S.textMuted}}>Create another group, join a group, or switch into a group you manage.</p>
+        </div>
+      </div>
+      <Card style={{marginBottom:20}}>
+        <div style={{display:"flex",background:S.surface,borderRadius:10,padding:3,marginBottom:18}}>
+          {["create","join"].map(m=>(
+            <button key={m} onClick={()=>{setMode(m);setError("");setMessage("");}} style={{flex:1,padding:"8px 0",borderRadius:8,border:"none",fontFamily:"inherit",fontSize:13,fontWeight:600,cursor:"pointer",background:mode===m?S.card:"transparent",color:mode===m?S.accent:S.textMuted,textTransform:"capitalize"}}>{m}</button>
+          ))}
+        </div>
+        {error&&<div style={{background:S.dangerBg,border:`1px solid ${S.danger}44`,borderRadius:8,padding:"10px 14px",marginBottom:14,fontSize:13,color:S.danger}}>{error}</div>}
+        {message&&<div style={{background:S.accentSubtle,border:`1px solid ${S.accent}44`,borderRadius:8,padding:"10px 14px",marginBottom:14,fontSize:13,color:S.accent}}>{message}</div>}
+        {mode==="create"?(
+          <>
+            <Inp label="Group name" value={groupName} onChange={setGroupName} required placeholder="Saturday Golf Crew"/>
+            <TA label="Description" value={description} onChange={setDescription} rows={2}/>
+            <Divider/>
+            <SecTitle>Optional Home Course</SecTitle>
+            <Inp label="Course name" value={locationName} onChange={setLocationName} placeholder="Newnan Country Club"/>
+            <Inp label="Address" value={locationAddress} onChange={setLocationAddress} placeholder="200 CC Dr, Newnan, GA"/>
+          </>
+        ):(
+          <Inp label="Group name or invite code" value={joinCode} onChange={setJoinCode} required placeholder="Search by group name"/>
+        )}
+        <div style={{display:"flex",justifyContent:"flex-end",marginTop:8}}>
+          <Btn onClick={submit} disabled={loading}>{loading?"Saving...":mode==="create"?"Create Group":"Join Group"}</Btn>
+        </div>
+      </Card>
+      <Card>
+        <SecTitle>My Groups</SecTitle>
+        {groups.length===0?<p style={{margin:0,fontSize:13,color:S.textMuted}}>You are not in any groups yet.</p>:groups.map(g=>{
+          const membership=getMem(g,user.id);
+          const canManage=["superadmin","admin"].includes(membership?.role);
+          return(
+            <div key={g.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,padding:"12px 0",borderBottom:`1px solid ${S.cardBorder}33`,flexWrap:"wrap"}}>
+              <div>
+                <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                  <div style={{fontSize:15,fontWeight:700,color:S.text}}>{g.name}</div>
+                  {g.id===activeGroupId&&<Badge>Current</Badge>}
+                  <RoleBadge role={membership?.role||"player"}/>
+                </div>
+                <div style={{fontSize:12,color:S.textMuted,marginTop:3}}>{g.memberships.length} members - {g.locations.length} location{g.locations.length!==1?"s":""}</div>
+              </div>
+              <div style={{display:"flex",gap:8}}>
+                <Btn variant="ghost" small onClick={()=>onOpenGroup(g.id)}>Open Games</Btn>
+                {canManage&&<Btn variant="gold" small onClick={()=>onOpenAdmin(g.id)}>Add Game</Btn>}
+              </div>
+            </div>
+          );
+        })}
+      </Card>
+    </div>
+  );
+};
+
 const TopNav=({page,setPage,user,group,groups,onGroupChange,onSignOut})=>{
   const [open,setOpen]=useState(false);
   const mem=group?getMem(group,user.id):null;
@@ -721,7 +825,7 @@ const TopNav=({page,setPage,user,group,groups,onGroupChange,onSignOut})=>{
         </select>
       )}
       <div style={{display:"flex",gap:2}}>
-        {[{id:"splash",label:"Games"},{id:"profile",label:"Profile"},...(canEditGroup?[{id:"admin",label:"Admin"}]:[])].map(({id,label})=>(
+        {[{id:"splash",label:"Games"},{id:"groups",label:"Groups"},{id:"profile",label:"Profile"},...(canEditGroup?[{id:"admin",label:"Admin"}]:[])].map(({id,label})=>(
           <button key={id} onClick={()=>setPage(id)} style={{background:page===id?S.accentSubtle:"transparent",border:"none",borderRadius:8,padding:"6px 12px",color:page===id?S.accent:S.textMuted,fontSize:13,fontWeight:page===id?600:400,cursor:"pointer",fontFamily:"inherit"}}>{label}</button>
         ))}
       </div>
@@ -736,6 +840,7 @@ const TopNav=({page,setPage,user,group,groups,onGroupChange,onSignOut})=>{
             <div style={{padding:"4px 10px",fontSize:11,color:S.textMuted}}>{user.email}</div>
             <Divider/>
             <button onClick={()=>{setOpen(false);setPage("profile");}} style={{width:"100%",textAlign:"left",padding:"8px 10px",background:"none",border:"none",color:S.text,fontSize:13,cursor:"pointer",fontFamily:"inherit",borderRadius:6}}>My Profile</button>
+            <button onClick={()=>{setOpen(false);setPage("groups");}} style={{width:"100%",textAlign:"left",padding:"8px 10px",background:"none",border:"none",color:S.text,fontSize:13,cursor:"pointer",fontFamily:"inherit",borderRadius:6}}>Create or Join Group</button>
             <button onClick={onSignOut} style={{width:"100%",textAlign:"left",padding:"8px 10px",background:"none",border:"none",color:S.danger,fontSize:13,cursor:"pointer",fontFamily:"inherit",borderRadius:6}}>Sign out</button>
           </div>
         )}
@@ -1305,11 +1410,14 @@ const MembersTab=({group,users,currentUserId,onUpdate,superAdmin})=>{
               <div style={{fontSize:12,color:S.textMuted}}>{u.email} · HCP {u.handicap}</div>
             </div>
             {superAdmin&&!isSelf?(
-              <select value={m.role} onChange={e=>onUpdate({...group,memberships:group.memberships.map(x=>x.userId===m.userId?{...x,role:e.target.value}:x)})} style={{background:S.card,border:`1px solid ${S.cardBorder}`,borderRadius:6,padding:"4px 8px",color:S.text,fontSize:12,fontFamily:"inherit",cursor:"pointer"}}>
-                <option value="superadmin">Owner</option>
-                <option value="admin">Admin</option>
-                <option value="player">Player</option>
-              </select>
+              <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",justifyContent:"flex-end"}}>
+                {m.role!=="superadmin"&&<Btn variant="gold" small onClick={()=>onUpdate({...group,memberships:group.memberships.map(x=>x.userId===m.userId?{...x,role:"superadmin"}:x)})}>Make Owner</Btn>}
+                <select value={m.role} onChange={e=>onUpdate({...group,memberships:group.memberships.map(x=>x.userId===m.userId?{...x,role:e.target.value}:x)})} style={{background:S.card,border:`1px solid ${S.cardBorder}`,borderRadius:6,padding:"4px 8px",color:S.text,fontSize:12,fontFamily:"inherit",cursor:"pointer"}}>
+                  <option value="superadmin">Owner</option>
+                  <option value="admin">Admin</option>
+                  <option value="player">Player</option>
+                </select>
+              </div>
             ):<RoleBadge role={m.role}/>}
             {superAdmin&&!isSelf&&<Btn variant="danger" small onClick={()=>onUpdate({...group,memberships:group.memberships.filter(x=>x.userId!==m.userId)})}>Remove</Btn>}
           </div>
@@ -1743,7 +1851,7 @@ export default function App(){
     }).eq("id",updated.id);
   };
 
-  const applyOnboardedGroup=onboardedGroup=>{
+  const applyOnboardedGroup=(onboardedGroup,nextPage="splash")=>{
     const uiGroup={
       id:onboardedGroup.id,
       name:onboardedGroup.name||"",
@@ -1758,7 +1866,7 @@ export default function App(){
         : [...d.groups,uiGroup],
     }));
     setGroupId(uiGroup.id);
-    setPage("splash");
+    setPage(nextPage);
   };
 
   const handleCreateFirstGroup=async({name,description,locationName,locationAddress})=>{
@@ -1781,7 +1889,8 @@ export default function App(){
     });
     const payload=await res.json().catch(()=>({}));
     if(!res.ok)throw new Error(payload.error||payload.details||"Unable to create group");
-    applyOnboardedGroup(payload.data.group);
+    applyOnboardedGroup(payload.data.group,"admin");
+    await loadData(userId);
   };
 
   const handleJoinFirstGroup=async(joinCode)=>{
@@ -1798,7 +1907,8 @@ export default function App(){
     });
     const payload=await res.json().catch(()=>({}));
     if(!res.ok)throw new Error(payload.error||payload.details||"Unable to join group");
-    applyOnboardedGroup(payload.data.group);
+    applyOnboardedGroup(payload.data.group,"splash");
+    await loadData(userId);
   };
 
   const handleSendRequest=(gameId,request)=>{
@@ -1878,6 +1988,17 @@ export default function App(){
         />
       )}
       {page==="splash"&&group&&user&&<SplashPage group={group} user={user} users={db.users} games={db.games} onRegister={handleRegister}/>}
+      {page==="groups"&&user&&(
+        <GroupsPage
+          user={user}
+          groups={myGroups}
+          activeGroupId={groupId}
+          onCreateGroup={handleCreateFirstGroup}
+          onJoinGroup={handleJoinFirstGroup}
+          onOpenGroup={id=>{setGroupId(id);setPage("splash");}}
+          onOpenAdmin={id=>{setGroupId(id);setPage("admin");}}
+        />
+      )}
       {page==="admin"&&group&&user&&canEdit(group,userId)&&<AdminPage group={group} user={user} users={db.users} games={db.games} onUpdateGroup={handleUpdateGroup} onSaveGame={handleSaveGame} onDeleteGame={handleDeleteGame} onSendRequest={handleSendRequest} onSimulateResponse={handleSimulateResponse} onSendGameInvite={handleSendGameInvite}/>}
       {page==="profile"&&user&&<ProfilePage user={user} groups={db.groups} games={db.games} onUpdateUser={handleUpdateUser}/>}
     </div>
