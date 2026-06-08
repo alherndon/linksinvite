@@ -220,6 +220,14 @@ const toDbLocation=(loc,groupId)=>({
   tee_time_contact:JSON.stringify(loc.teeTimeContact||{}),
   is_active:true,
 });
+const toApiLocation=(loc,groupId)=>({
+  location_id:loc.id,
+  group_id:groupId,
+  name:loc.name,
+  address:loc.address||"",
+  tee_time_contact:loc.teeTimeContact||{name:"",email:"",phone:""},
+  is_active:true,
+});
 
 // ── shared UI ─────────────────────────────────────────────────────────────────
 const Badge=({children,color=S.accent,bg=S.accentSubtle})=>(
@@ -1262,27 +1270,43 @@ const GameForm=({game,group,adminUser,onSave,onCancel,onSendRequest})=>{
   const isNew=!game;
   const recurrenceDefault={frequency:"weekly",interval:1,weeklyDays:["Saturday"],monthlyOption:"dayOfMonth",monthlyDay:1,monthlyWeek:"first",monthlyWeekday:"Saturday",yearlyMonth:"January",yearlyDay:1,endType:"never",endAfter:10,endDate:""};
   const defaultForm={day:"Saturday",date:"",time:"8:00 AM",locationId:group.locations[0]?.id||"",description:"",rules:"",pairingMethod:"balanced",assignFoursomes:true,maxPlayers:16,recurring:false,recurrence:recurrenceDefault};
+  const blankLocation=()=>({id:uid(),name:"",address:"",teeTimeContact:{name:"",email:"",phone:""}});
+  const draftFromLocation=loc=>loc?{id:loc.id,name:loc.name||"",address:loc.address||"",teeTimeContact:{name:loc.teeTimeContact?.name||"",email:loc.teeTimeContact?.email||"",phone:loc.teeTimeContact?.phone||""}}:blankLocation();
+  const initialLocation=getLoc(group,(game||defaultForm).locationId);
   const [form,setForm]=useState(isNew?defaultForm:{...game,recurrence:game.recurrence||recurrenceDefault,recurring:game.recurring||false});
+  const [locationMode,setLocationMode]=useState(initialLocation?"existing":"new");
+  const [locationDraft,setLocationDraft]=useState(()=>draftFromLocation(initialLocation));
+  const [saveError,setSaveError]=useState("");
   const [saved,setSaved]=useState(false);
   const [showModal,setShowModal]=useState(false);
   useEffect(()=>{
     if(game){setForm({...game,recurrence:game.recurrence||recurrenceDefault,recurring:game.recurring||false});}
   },[game?.id]);
+  useEffect(()=>{
+    if(locationMode!=="existing")return;
+    const loc=getLoc(group,form.locationId);
+    if(loc)setLocationDraft(draftFromLocation(loc));
+  },[locationMode,form.locationId,group.locations.length]);
 
-  const sf=(k,v)=>setForm(f=>({...f,[k]:v}));
+  const sf=(k,v)=>{setSaveError("");setForm(f=>({...f,[k]:v}));};
   const sr=(k,v)=>setForm(f=>({...f,recurrence:{...f.recurrence,[k]:v}}));
+  const sl=(k,v)=>{setSaveError("");setLocationDraft(l=>({...l,[k]:v}));};
+  const sc=(k,v)=>{setSaveError("");setLocationDraft(l=>({...l,teeTimeContact:{...l.teeTimeContact,[k]:v}}));};
   const toggleWeeklyDay=day=>{
     const days=form.recurrence.weeklyDays.includes(day)?form.recurrence.weeklyDays.filter(d=>d!==day):[...form.recurrence.weeklyDays,day];
     sr("weeklyDays",days);
   };
-  const selLoc=getLoc(group,form.locationId);
-  const contact=selLoc?.teeTimeContact||{};
+  const selLoc=locationDraft;
+  const contact=locationDraft.teeTimeContact||{};
   const hasContact=!!(contact.email||contact.name);
   const lastReq=game?.teeTimeRequests?.slice(-1)[0];
 
   const handleSave=()=>{
-    const out=isNew?{...form,id:uid(),groupId:group.id,registrations:[],waitlist:[],teeTimeRequests:[]}:{...game,...form};
-    onSave(out);setSaved(true);setTimeout(()=>setSaved(false),2000);
+    if(!locationDraft.name.trim()){setSaveError("Course name is required before saving a game.");return;}
+    const locationToSave={...locationDraft,name:locationDraft.name.trim(),address:locationDraft.address.trim()};
+    const outForm={...form,locationId:locationToSave.id};
+    const out=isNew?{...outForm,id:uid(),groupId:group.id,registrations:[],waitlist:[],teeTimeRequests:[]}:{...game,...outForm};
+    onSave(out,locationToSave);setSaved(true);setTimeout(()=>setSaved(false),2000);
   };
 
   return (
@@ -1305,9 +1329,49 @@ const GameForm=({game,group,adminUser,onSave,onCancel,onSendRequest})=>{
           <Inp label="Date" value={form.date} onChange={v=>sf("date",v)} placeholder="June 7, 2025" required/>
           <Inp label="1st Tee Time" value={form.time} onChange={v=>sf("time",v)} placeholder="8:00 AM" required/>
         </div>
-        <Sel label="Location" value={form.locationId} onChange={v=>sf("locationId",v)} options={group.locations.map(l=>({value:l.id,label:l.name}))}/>
+        <Card style={{marginBottom:14,background:S.surface,border:`1px solid ${S.cardBorder}`}}>
+          <SecTitle>Course</SecTitle>
+          {group.locations.length>0&&(
+            <div style={{display:"flex",background:S.card,borderRadius:10,padding:3,marginBottom:14}}>
+              {[{id:"existing",label:"Existing"},{id:"new",label:"New Course"}].map(m=>(
+                <button key={m.id} type="button" onClick={()=>{
+                  setLocationMode(m.id);
+                  if(m.id==="new"){
+                    const next=blankLocation();
+                    setLocationDraft(next);
+                    sf("locationId",next.id);
+                  }else{
+                    const id=group.locations[0]?.id||"";
+                    sf("locationId",id);
+                    setLocationDraft(draftFromLocation(getLoc(group,id)));
+                  }
+                }} style={{flex:1,padding:"7px 0",borderRadius:8,border:"none",fontFamily:"inherit",fontSize:12,fontWeight:600,cursor:"pointer",background:locationMode===m.id?S.surface:"transparent",color:locationMode===m.id?S.accent:S.textMuted}}>{m.label}</button>
+              ))}
+            </div>
+          )}
+          {locationMode==="existing"&&group.locations.length>0&&(
+            <Sel label="Saved course" value={form.locationId} onChange={v=>sf("locationId",v)} options={group.locations.map(l=>({value:l.id,label:l.name}))}/>
+          )}
+          <Inp label="Course name" value={locationDraft.name} onChange={v=>sl("name",v)} required placeholder="Newnan Country Club"/>
+          <Inp label="Address" value={locationDraft.address} onChange={v=>sl("address",v)} placeholder="200 CC Dr, Newnan, GA"/>
+          <Divider/>
+          <SecTitle>Tee Time Contact</SecTitle>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+            <Inp label="Contact name" value={contact.name||""} onChange={v=>sc("name",v)} placeholder="Pro shop contact"/>
+            <Inp label="Phone" value={contact.phone||""} onChange={v=>sc("phone",v)} placeholder="770-253-4400"/>
+          </div>
+          <Inp label="Email" type="email" value={contact.email||""} onChange={v=>sc("email",v)} placeholder="proshop@course.com" hint="Used for tee time request emails"/>
+          <div style={{background:hasContact?S.accentSubtle:S.warningBg,border:`1px solid ${hasContact?S.accent+"44":S.warning+"33"}`,borderRadius:10,padding:"10px 12px",display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+            <div style={{flex:1,minWidth:160,fontSize:12,color:hasContact?S.accent:S.warning}}>
+              {hasContact?"Contact will be saved with this game.":"Add a contact now or save the game and add one later."}
+            </div>
+            {!isNew&&hasContact&&<Btn variant="info" small onClick={()=>setShowModal(true)}>Request Tee Times</Btn>}
+            {!isNew&&!hasContact&&<span style={{fontSize:11,color:S.textDim}}>Save a contact to enable requests</span>}
+          </div>
+        </Card>
+        {saveError&&<div style={{background:S.dangerBg,border:`1px solid ${S.danger}44`,borderRadius:8,padding:"10px 14px",marginBottom:14,fontSize:12,color:S.danger}}>{saveError}</div>}
 
-        <div style={{background:hasContact?S.accentSubtle:S.warningBg,border:`1px solid ${hasContact?S.accent+"44":S.warning+"33"}`,borderRadius:10,padding:"12px 14px",marginBottom:14,display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+        <div style={{display:"none"}}>
           <div style={{flex:1,minWidth:160}}>
             <div style={{fontSize:11,fontWeight:700,color:hasContact?S.accent:S.warning,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:3}}>Tee Time Contact</div>
             {hasContact?(
@@ -1813,8 +1877,20 @@ export default function App(){
     }
   };
 
-  const handleSaveGame=async(game)=>{
+  const handleSaveGame=async(game,locationToSave=null)=>{
     setDb(d=>({...d,games:d.games.some(g=>g.id===game.id)?d.games.map(g=>g.id===game.id?game:g):[...d.games,game]}));
+    if(locationToSave){
+      setDb(d=>({...d,groups:d.groups.map(g=>{
+        if(g.id!==game.groupId)return g;
+        const exists=g.locations.some(l=>l.id===locationToSave.id);
+        return{
+          ...g,
+          locations:exists
+            ? g.locations.map(l=>l.id===locationToSave.id?locationToSave:l)
+            : [...g.locations,locationToSave],
+        };
+      })}));
+    }
     try{
       const{data:{session}}=await supabase.auth.getSession();
       if(!session?.access_token)throw new Error("Sign in again to save this game.");
@@ -1824,7 +1900,10 @@ export default function App(){
           "Content-Type":"application/json",
           Authorization:`Bearer ${session.access_token}`,
         },
-        body:JSON.stringify({game:toDbGame(game)}),
+        body:JSON.stringify({
+          game:toDbGame(locationToSave?{...game,locationId:locationToSave.id}:game),
+          location:locationToSave?toApiLocation(locationToSave,game.groupId):null,
+        }),
       });
       const payload=await res.json().catch(()=>({}));
       if(!res.ok)throw new Error(payload.error||payload.details||"Unable to save game");

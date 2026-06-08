@@ -7,6 +7,49 @@ function normalizeText(value) {
   return typeof value === 'string' ? value.trim() : '';
 }
 
+async function saveMembership(adminSupabase, groupId, userId, role) {
+  const { data: existing, error: findError } = await adminSupabase
+    .from('group_memberships')
+    .select('group_id, user_id, role')
+    .eq('group_id', groupId)
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (findError) {
+    throw findError;
+  }
+
+  if (existing && role === 'player') {
+    return;
+  }
+
+  if (existing) {
+    const { error } = await adminSupabase
+      .from('group_memberships')
+      .update({ role })
+      .eq('group_id', groupId)
+      .eq('user_id', userId);
+
+    if (error) {
+      throw error;
+    }
+
+    return;
+  }
+
+  const { error } = await adminSupabase
+    .from('group_memberships')
+    .insert({
+      group_id: groupId,
+      user_id: userId,
+      role,
+    });
+
+  if (error) {
+    throw error;
+  }
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -76,7 +119,7 @@ export default async function handler(req, res) {
             group_id: groupData.id,
             name: locationName,
             address: locationAddress,
-            tee_time_contact: JSON.stringify({ name: '', email: '', phone: '' }),
+            tee_time_contact: { name: '', email: '', phone: '' },
             is_active: true,
           })
           .select('location_id, group_id, name, address, tee_time_contact, is_active')
@@ -88,19 +131,7 @@ export default async function handler(req, res) {
         locationData = data;
       }
 
-      const { error: memberError } = await adminSupabase
-        .from('group_memberships')
-        .upsert({
-          group_id: groupData.id,
-          user_id: userId,
-          role: 'superadmin',
-        }, {
-          onConflict: 'group_id,user_id',
-        });
-
-      if (memberError) {
-        throw memberError;
-      }
+      await saveMembership(adminSupabase, groupData.id, userId, 'superadmin');
 
       return res.status(201).json({
         data: {
@@ -136,19 +167,7 @@ export default async function handler(req, res) {
         });
       }
 
-      const { error: memberError } = await adminSupabase
-        .from('group_memberships')
-        .upsert({
-          group_id: groupData.id,
-          user_id: userId,
-          role: 'player',
-        }, {
-          onConflict: 'group_id,user_id',
-        });
-
-      if (memberError) {
-        throw memberError;
-      }
+      await saveMembership(adminSupabase, groupData.id, userId, 'player');
 
       const { data: locationRows, error: locationError } = await adminSupabase
         .from('locations')

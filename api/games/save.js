@@ -43,6 +43,7 @@ export default async function handler(req, res) {
   }
 
   const game = req.body?.game || req.body;
+  const location = req.body?.location || null;
   const gameId = normalizeText(game?.id);
   const groupId = normalizeText(game?.group_id);
 
@@ -85,10 +86,42 @@ export default async function handler(req, res) {
     return res.status(403).json({ error: 'This game belongs to another group' });
   }
 
+  let locationId = normalizeText(game?.location_id) || normalizeText(location?.location_id) || null;
+
+  if (location) {
+    const locationRecord = {
+      location_id: locationId || undefined,
+      group_id: groupId,
+      name: normalizeText(location?.name),
+      address: normalizeText(location?.address),
+      tee_time_contact: location?.tee_time_contact || { name: '', email: '', phone: '' },
+      is_active: location?.is_active !== false,
+    };
+
+    if (!locationRecord.name) {
+      return res.status(400).json({ error: 'Course name is required' });
+    }
+
+    const { data: locationData, error: locationError } = await adminSupabase
+      .from('locations')
+      .upsert(locationRecord)
+      .select('location_id')
+      .single();
+
+    if (locationError) {
+      return res.status(500).json({
+        error: 'Unable to save location',
+        details: locationError.message,
+      });
+    }
+
+    locationId = locationData.location_id;
+  }
+
   const record = {
     id: gameId,
     group_id: groupId,
-    location_id: normalizeText(game?.location_id) || null,
+    location_id: locationId,
     description: normalizeText(game?.description) || null,
     rules: normalizeText(game?.rules) || null,
     max_players: Number(game?.max_players) || 16,
