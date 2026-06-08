@@ -1,5 +1,4 @@
 import {
-  createUserSupabaseClient,
   getAdminSupabaseClient,
   getBearerToken,
 } from '../_lib/supabase.js';
@@ -124,15 +123,17 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: 'Missing bearer token' });
   }
 
-  const userSupabase = createUserSupabaseClient(accessToken);
+  const adminSupabase = getAdminSupabaseClient();
   const { data: authData, error: authError } =
-    await userSupabase.auth.getUser();
+    await adminSupabase.auth.getUser(accessToken);
 
   if (authError || !authData.user) {
-    return res.status(401).json({ error: 'Invalid access token' });
+    return res.status(401).json({
+      error: 'Invalid access token',
+      details: authError?.message || 'Supabase rejected the session token',
+    });
   }
 
-  const adminSupabase = getAdminSupabaseClient();
   const authUser = authData.user;
 
   const { data: userRow, error: userError } = await adminSupabase

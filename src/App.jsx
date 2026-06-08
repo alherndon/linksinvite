@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { supabase, supabaseConfigError } from "./supabaseClient";
+import { supabase, supabaseConfigError, supabaseHost } from "./supabaseClient";
 
 const S = {
   bg:"#0d1a0e",surface:"#132016",card:"#1a2b1c",cardBorder:"#2a3f2c",
@@ -669,7 +669,10 @@ const NoGroupsPage=({user,loadError,onCreateGroup,onJoinGroup,onSignOut})=>{
             You're signed in as <strong style={{color:S.text}}>{user.email}</strong>. Create a group or join an existing one to open the app navigation.
           </div>
         </div>
-        {loadError&&<div style={{background:S.warningBg,border:`1px solid ${S.warning}44`,borderRadius:8,padding:"10px 14px",marginBottom:14,fontSize:13,color:S.warning,lineHeight:1.5}}>{loadError}</div>}
+        {loadError&&<div style={{background:S.warningBg,border:`1px solid ${S.warning}44`,borderRadius:8,padding:"10px 14px",marginBottom:14,fontSize:13,color:S.warning,lineHeight:1.5}}>
+          {loadError}
+          {supabaseHost&&<div style={{marginTop:6,color:S.textMuted}}>Browser Supabase project: {supabaseHost}</div>}
+        </div>}
         <div style={{display:"flex",background:S.surface,borderRadius:10,padding:3,marginBottom:18}}>
           {["create","join"].map(m=>(
             <button key={m} onClick={()=>{setMode(m);setError("");setMessage("");}} style={{flex:1,padding:"8px 0",borderRadius:8,border:"none",fontFamily:"inherit",fontSize:13,fontWeight:600,cursor:"pointer",background:mode===m?S.card:"transparent",color:mode===m?S.accent:S.textMuted,textTransform:"capitalize"}}>{m}</button>

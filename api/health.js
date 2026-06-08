@@ -11,9 +11,19 @@ export default function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  let supabaseHost = null;
+  try {
+    supabaseHost = process.env.SUPABASE_URL
+      ? new URL(process.env.SUPABASE_URL).host
+      : null;
+  } catch {
+    supabaseHost = 'invalid-url';
+  }
+
   return res.status(200).json({
     ok: true,
     environment: process.env.VERCEL_ENV || 'local',
+    supabaseHost,
     hasSupabaseUrl: Boolean(process.env.SUPABASE_URL),
     hasSupabasePublicKey: Boolean(
       process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY
