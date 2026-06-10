@@ -1,14 +1,19 @@
-import { supabaseAdmin } from './_lib/supabase.js';
+import { createClient } from '@supabase/supabase-js';
+
+// Self-contained: the Supabase service-role client is created here rather than
+// imported from _lib, so there's no local module for Vercel to fail to bundle.
+// SERVICE-ROLE key bypasses RLS and must only ever live server-side.
+const supabaseAdmin = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SECRET_KEY,
+  { auth: { persistSession: false, autoRefreshToken: false } }
+);
 
 // Golfer register / unregister via a tokenized email link. No login required.
-//
-// Flow:
-//   GET  /api/respond?token=...&action=register   -> shows a confirm page only
-//   POST (the confirm button)                      -> actually applies the change
-//
-// Why GET never mutates: email clients and security scanners (Outlook Safe
-// Links, etc.) prefetch links. If GET changed state, golfers would be
-// registered/unregistered without ever clicking. Mutations happen on POST only.
+//   GET  /api/respond?token=...&action=register  -> shows a confirm page only
+//   POST (the confirm button)                     -> actually applies the change
+// GET never mutates because email clients/scanners prefetch links; only POST
+// changes state, so a prefetch can't register or unregister anyone.
 
 export default async function handler(req, res) {
   const method = req.method || 'GET';
@@ -19,8 +24,6 @@ export default async function handler(req, res) {
     return html(res, 400, page('Invalid link', '<p>This link is missing or malformed.</p>'));
   }
 
-  // Resolve the token -> which game, which golfer. The nested selects work
-  // because game_invitees has foreign keys to both golfers and games.
   const { data: invite, error } = await supabaseAdmin
     .from('game_invitees')
     .select(
@@ -39,7 +42,6 @@ export default async function handler(req, res) {
   const game = invite.games;
   const when = `${game.game_date} - first tee ${formatTime(game.first_tee_time)} at ${escapeHtml(game.location)}`;
 
-  // GET: show a confirmation page whose button POSTs back here.
   if (method === 'GET') {
     const label = action === 'register' ? 'Register for' : 'Unregister from';
     return html(res, 200, page(
@@ -54,7 +56,6 @@ export default async function handler(req, res) {
     ));
   }
 
-  // POST: apply the change.
   try {
     if (action === 'register') {
       const status = await register(invite.game_id, invite.golfer_id, game.capacity);
@@ -73,10 +74,7 @@ export default async function handler(req, res) {
   }
 }
 
-// --- registration logic -----------------------------------------------------
-
 async function register(gameId, golferId, capacity) {
-  // Idempotent: if they already have a row, return its status unchanged.
   const { data: existing } = await supabaseAdmin
     .from('registrations')
     .select('status')
@@ -85,10 +83,7 @@ async function register(gameId, golferId, capacity) {
     .maybeSingle();
   if (existing) return existing.status;
 
-  // Count confirmed players to decide registered vs waitlisted.
-  // NOTE: this read-then-write has a tiny race if two golfers grab the last
-  // spot in the same instant. For a ~20-person group that's fine; ask me for
-  // the atomic Postgres-function version if you ever want to harden it.
+  // read-then-write; tiny race on the last spot, fine for a ~20-person group.
   const { count } = await supabaseAdmin
     .from('registrations')
     .select('*', { count: 'exact', head: true })
@@ -96,12 +91,10 @@ async function register(gameId, golferId, capacity) {
     .eq('status', 'registered');
 
   const status = (count ?? 0) < capacity ? 'registered' : 'waitlisted';
-
   const { error } = await supabaseAdmin
     .from('registrations')
     .insert({ game_id: gameId, golfer_id: golferId, status });
   if (error) throw error;
-
   return status;
 }
 
@@ -116,8 +109,6 @@ async function unregister(gameId, golferId) {
 
   await supabaseAdmin.from('registrations').delete().eq('id', row.id);
 
-  // If a CONFIRMED player left, promote the oldest waitlisted golfer.
-  // (If a waitlisted player left, nothing to promote.)
   if (row.status === 'registered') {
     const { data: next } = await supabaseAdmin
       .from('registrations')
@@ -135,8 +126,6 @@ async function unregister(gameId, golferId) {
     }
   }
 }
-
-// --- small html helpers ------------------------------------------------------
 
 function html(res, status, body) {
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
