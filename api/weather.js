@@ -16,6 +16,10 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Missing location parameter' });
   }
 
+  // NEW: how many days to return (1-7). Defaults to 3 so the existing frontend
+  // is unaffected; the digest passes ?days=7 for the weekly snapshot.
+  const numDays = Math.min(Math.max(parseInt(req.query.days, 10) || 3, 1), 7);
+
   try {
     const geoUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(location)}&format=json&limit=1`;
     const geoRes = await fetch(geoUrl, {
@@ -58,7 +62,8 @@ export default async function handler(req, res) {
       return 'Overcast Clouds';
     };
 
-    const days = daily.time.slice(0, 3).map((timeStr, idx) => {
+    // CHANGED: slice to numDays instead of a hardcoded 3.
+    const days = daily.time.slice(0, numDays).map((timeStr, idx) => {
       const dayName = new Date(timeStr + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long' });
       const maxTemp = Math.round(daily.temperature_2m_max[idx]);
       const minTemp = Math.round(daily.temperature_2m_min[idx]);

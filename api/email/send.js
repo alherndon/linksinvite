@@ -54,16 +54,18 @@ function buildResponseLinks(baseUrl, token, actions = DEFAULT_ACTIONS) {
 }
 
 function buildHtmlEmail({ body, responseLinks }) {
-  const linkMarkup = responseLinks
-    .map(
-      ({ action, url }) => `
+  const linkMarkup = responseLinks.length > 0
+    ? responseLinks
+        .map(
+          ({ action, url }) => `
         <p>
           <strong>${escapeHtml(action.toUpperCase())}</strong><br />
           <a href="${escapeHtml(url)}">${escapeHtml(url)}</a>
         </p>
       `
-    )
-    .join('');
+        )
+        .join('')
+    : '';
 
   return `
     <div style="font-family:Arial,sans-serif;line-height:1.5;color:#111827">
@@ -203,8 +205,8 @@ export default async function handler(req, res) {
       });
     }
 
-    if (!Array.isArray(actions) || actions.length === 0) {
-      return res.status(400).json({ error: 'actions must be a non-empty array' });
+    if (!Array.isArray(actions)) {
+      return res.status(400).json({ error: 'actions must be an array' });
     }
 
     const userSupabase = createUserSupabaseClient(accessToken);

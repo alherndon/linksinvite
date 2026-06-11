@@ -1,8 +1,5 @@
 {
-  "rewrites": [
-    {
-      "source": "/respond/:token",
-      "destination": "/"
-    }
+  "crons": [
+    { "path": "/api/digest", "schedule": "0 18 * * *" }
   ]
 }

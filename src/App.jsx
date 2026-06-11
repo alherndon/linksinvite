@@ -25,6 +25,7 @@ const RECURRENCE_OPTIONS=[
 
 const WEEKDAYS=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
 const MONTHS=["January","February","March","April","May","June","July","August","September","October","November","December"];
+const DEFAULT_RULES="Even number of golfers — 2 best balls, full handicap.\nOdd number of golfers — Points quota.\nRock, Root, Azalea — free drop.\nReady Golf.\nWhen out of hole, pick up.\nErosion areas near cart path are considered cart path.";
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 const uid=()=>crypto.randomUUID();
@@ -864,7 +865,7 @@ const WeatherWidget=({location})=>{
   useEffect(()=>{
     if(!location?.name)return;
     setWxLoading(true);
-    fetch(`/api/weather?location=${encodeURIComponent(location.name+","+(location.address||""))}`)
+    fetch(`/api/weather?location=${encodeURIComponent(location.name+","+(location.address||""))}&days=7`)
       .then(r=>r.json())
       .then(d=>{if(d.days)setWx(d.days);})
       .catch(()=>{})
@@ -876,11 +877,11 @@ const WeatherWidget=({location})=>{
 
   return (
     <Card style={{marginBottom:20}}>
-      <SecTitle>3-Day Forecast{location?.name&&<span style={{fontWeight:400,color:S.textDim,marginLeft:6,fontSize:11}}>— {location.name}</span>}</SecTitle>
+      <SecTitle>7-Day Forecast{location?.name&&<span style={{fontWeight:400,color:S.textDim,marginLeft:6,fontSize:11}}>— {location.name}</span>}</SecTitle>
       {wxLoading&&<p style={{margin:0,fontSize:13,color:S.textMuted}}>Loading forecast…</p>}
       {!wxLoading&&!wx&&<p style={{margin:0,fontSize:13,color:S.textDim}}>Forecast unavailable</p>}
       {!wxLoading&&wx&&(
-        <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(7,minmax(72px,1fr))",gap:8,overflowX:"auto"}}>
           {wx.map((w,i)=>{
             const day=w.dayName?.slice(0,3)||"—";
             const tempParts=(w.temp||"").replace(/°F/g,"").split("/");
@@ -934,7 +935,7 @@ const GameCard=({game,group,user,users,onRegister})=>{
           {loc&&<div style={{fontSize:12,color:S.textDim,marginTop:2}}>📍 {loc.name}</div>}
         </div>
         <Btn variant={isReg||isWait?"danger":isFull?"secondary":"primary"} onClick={()=>onRegister(game.id)} small>
-          {isReg?"Unregister":isWait?"Leave Waitlist":isFull?"Join Waitlist":"Register"}
+          {isReg?"I'm Out":isWait?"Leave Waitlist":isFull?"Join Waitlist":"I'm In"}
         </Btn>
       </div>
       <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap"}}>
@@ -1269,7 +1270,7 @@ const LocationsTab=({group,onUpdate,superAdmin})=>{
 const GameForm=({game,group,adminUser,onSave,onCancel,onSendRequest})=>{
   const isNew=!game;
   const recurrenceDefault={frequency:"weekly",interval:1,weeklyDays:["Saturday"],monthlyOption:"dayOfMonth",monthlyDay:1,monthlyWeek:"first",monthlyWeekday:"Saturday",yearlyMonth:"January",yearlyDay:1,endType:"never",endAfter:10,endDate:""};
-  const defaultForm={day:"Saturday",date:"",time:"8:00 AM",locationId:group.locations[0]?.id||"",description:"",rules:"",pairingMethod:"balanced",assignFoursomes:true,maxPlayers:16,recurring:false,recurrence:recurrenceDefault};
+  const defaultForm={day:"Saturday",date:"",time:"8:00 AM",locationId:group.locations[0]?.id||"",description:"",rules:DEFAULT_RULES,pairingMethod:"balanced",assignFoursomes:true,maxPlayers:16,recurring:false,recurrence:recurrenceDefault};
   const blankLocation=()=>({id:uid(),name:"",address:"",teeTimeContact:{name:"",email:"",phone:""}});
   const draftFromLocation=loc=>loc?{id:loc.id,name:loc.name||"",address:loc.address||"",teeTimeContact:{name:loc.teeTimeContact?.name||"",email:loc.teeTimeContact?.email||"",phone:loc.teeTimeContact?.phone||""}}:blankLocation();
   const initialLocation=getLoc(group,(game||defaultForm).locationId);
@@ -1502,7 +1503,7 @@ const MembersTab=({group,users,currentUserId,onUpdate,superAdmin})=>{
 };
 
 // ── ADMIN PAGE ────────────────────────────────────────────────────────────────
-const AdminPage=({group,user,users,games,onUpdateGroup,onSaveGame,onDeleteGame,onSendRequest,onSimulateResponse,onSendGameInvite})=>{
+const AdminPage=({group,user,users,games,onUpdateGroup,onSaveGame,onDeleteGame,onCancelGame,onSendRequest,onSimulateResponse,onSendGameInvite})=>{
   const [tab,setTab]=useState("games");
   const [showNew,setShowNew]=useState(false);
   const [editingId,setEditingId]=useState(null);
@@ -1553,10 +1554,12 @@ const AdminPage=({group,user,users,games,onUpdateGroup,onSaveGame,onDeleteGame,o
                     </div>
                     <div style={{display:"flex",gap:8}}>
                       <Btn variant="ghost" small onClick={()=>setEditingId(g.id)}>Edit</Btn>
+                      <Btn variant="secondary" small onClick={()=>onCancelGame(g)}>Cancel Game</Btn>
                       <Btn variant="danger" small onClick={()=>onDeleteGame(g.id)}>Delete</Btn>
                     </div>
                   </div>
                   <GameInvitePanel game={g} group={group} users={users} onSendInvite={onSendGameInvite}/>
+                  <BulkInvitePanel game={g} group={group} onSendInvite={onSendGameInvite}/>
                   {g.registrations.length>0&&(
                     <div style={{marginTop:12,paddingTop:12,borderTop:`1px solid ${S.cardBorder}33`}}>
                       <div style={{fontSize:11,color:S.textMuted,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:8}}>Roster</div>
@@ -1610,6 +1613,13 @@ const GameInvitePanel=({game,group,users,onSendInvite})=>{
   const [sending,setSending]=useState(false);
   const [message,setMessage]=useState("");
   const [error,setError]=useState("");
+  const loc=getLoc(group,game.locationId);
+  const defaultBody=[
+    `Can you play with ${group.name} on ${game.day}, ${game.date} at ${game.time}?`,
+    loc?.name?`Course: ${loc.name}`:null,
+    game.description||null,
+  ].filter(Boolean).join("\n");
+  const [inviteBody,setInviteBody]=useState(defaultBody);
 
   useEffect(()=>{
     if(!selectedUserId&&memberUsers[0]?.id)setSelectedUserId(memberUsers[0].id);
@@ -1622,7 +1632,7 @@ const GameInvitePanel=({game,group,users,onSendInvite})=>{
     if(!selectedUser)return;
     setSending(true);setMessage("");setError("");
     try{
-      await onSendInvite(game,selectedUser);
+      await onSendInvite(game,selectedUser,inviteBody);
       setMessage(`Invite sent to ${selectedUser.email}`);
     }catch(err){
       setError(err.message);
@@ -1636,6 +1646,7 @@ const GameInvitePanel=({game,group,users,onSendInvite})=>{
   return (
     <div style={{marginTop:12,padding:"12px 0",borderTop:`1px solid ${S.cardBorder}33`,borderBottom:`1px solid ${S.cardBorder}33`}}>
       <div style={{fontSize:11,color:S.textMuted,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:8}}>Email Invite</div>
+      <TA label="" value={inviteBody} onChange={setInviteBody} rows={3}/>
       <div style={{display:"flex",gap:8,alignItems:"flex-start",flexWrap:"wrap"}}>
         <select value={selectedUserId} onChange={e=>{setSelectedUserId(e.target.value);setMessage("");setError("");}} style={{flex:"1 1 220px",background:S.surface,border:`1px solid ${S.cardBorder}`,borderRadius:8,padding:"8px 10px",color:S.text,fontSize:13,fontFamily:"inherit"}}>
           {memberUsers.map(u=>(
@@ -1649,6 +1660,90 @@ const GameInvitePanel=({game,group,users,onSendInvite})=>{
       {alreadyIn&&<div style={{fontSize:11,color:S.warning,marginTop:6}}>This player is already registered or waitlisted. A new response link will still work.</div>}
       {message&&<div style={{fontSize:12,color:S.accent,marginTop:6}}>{message}</div>}
       {error&&<div style={{fontSize:12,color:S.danger,marginTop:6}}>{error}</div>}
+    </div>
+  );
+};
+
+// ── BULK INVITE ────────────────────────────────────────────────────────────────
+const BulkInvitePanel=({game,group,onSendInvite})=>{
+  const [open,setOpen]=useState(false);
+  const [emailText,setEmailText]=useState("");
+  const [loading,setLoading]=useState(false);
+  const [results,setResults]=useState(null);
+  const [importError,setImportError]=useState("");
+  const [inviting,setInviting]=useState(false);
+  const [inviteStatus,setInviteStatus]=useState("");
+
+  const handleImport=async()=>{
+    const emails=emailText.split(/[\n,;]+/).map(e=>e.trim()).filter(e=>e.includes("@")&&e.includes("."));
+    if(emails.length===0){setImportError("No valid email addresses found.");return;}
+    setLoading(true);setImportError("");setResults(null);setInviteStatus("");
+    try{
+      const{data:{session}}=await supabase.auth.getSession();
+      const res=await fetch("/api/groups/invite-bulk",{
+        method:"POST",
+        headers:{"Content-Type":"application/json",Authorization:`Bearer ${session.access_token}`},
+        body:JSON.stringify({groupId:group.id,emails}),
+      });
+      const payload=await res.json();
+      if(!res.ok)throw new Error(payload.error||"Import failed");
+      setResults(payload);
+    }catch(err){
+      setImportError(err.message);
+    }finally{
+      setLoading(false);
+    }
+  };
+
+  const handleInviteAll=async()=>{
+    if(!results)return;
+    const toInvite=[...(results.added||[]),...(results.alreadyMember||[])];
+    if(toInvite.length===0)return;
+    setInviting(true);setInviteStatus("");
+    const loc=getLoc(group,game.locationId);
+    const defaultBody=[
+      `Can you play with ${group.name} on ${game.day}, ${game.date} at ${game.time}?`,
+      loc?.name?`Course: ${loc.name}`:null,
+    ].filter(Boolean).join("\n");
+    let sent=0;
+    for(const u of toInvite){
+      try{
+        await onSendInvite(game,{id:u.userId,email:u.email,firstName:u.firstName,lastName:u.lastName},defaultBody);
+        sent++;
+      }catch{}
+    }
+    setInviting(false);
+    setInviteStatus(`${sent} invite${sent!==1?"s":""} sent.`);
+  };
+
+  if(!open)return(
+    <button onClick={()=>setOpen(true)} style={{background:"none",border:"none",color:S.accent,fontSize:12,fontWeight:600,cursor:"pointer",padding:"8px 0 2px",fontFamily:"inherit",display:"block",letterSpacing:"0.03em"}}>
+      ▼ Bulk import golfers by email
+    </button>
+  );
+
+  return(
+    <div style={{marginTop:8,paddingTop:12,borderTop:`1px solid ${S.cardBorder}33`}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+        <div style={{fontSize:11,fontWeight:700,color:S.textMuted,letterSpacing:"0.08em",textTransform:"uppercase"}}>Bulk Import Golfers</div>
+        <button onClick={()=>{setOpen(false);setResults(null);setEmailText("");setImportError("");setInviteStatus("");}} style={{background:"none",border:"none",color:S.textMuted,fontSize:13,cursor:"pointer",fontFamily:"inherit",padding:0}}>✕</button>
+      </div>
+      <TA label="Email Addresses" value={emailText} onChange={setEmailText} rows={4} placeholder={"Paste emails — one per line or comma-separated\nplayer1@example.com\nplayer2@example.com"}/>
+      {importError&&<div style={{fontSize:12,color:S.danger,marginBottom:8}}>{importError}</div>}
+      <Btn small onClick={handleImport} disabled={loading||!emailText.trim()}>{loading?"Looking up...":"Add to Group"}</Btn>
+      {results&&(
+        <div style={{marginTop:12,fontSize:13,lineHeight:1.7}}>
+          {results.added?.length>0&&<div style={{color:S.accent}}>✓ Added ({results.added.length}): {results.added.map(u=>`${u.firstName} ${u.lastName}`).join(", ")}</div>}
+          {results.alreadyMember?.length>0&&<div style={{color:S.textMuted}}>Already members ({results.alreadyMember.length}): {results.alreadyMember.map(u=>`${u.firstName} ${u.lastName}`).join(", ")}</div>}
+          {results.notFound?.length>0&&<div style={{color:S.warning}}>No account found ({results.notFound.length}): {results.notFound.join(", ")}</div>}
+          {((results.added?.length||0)+(results.alreadyMember?.length||0))>0&&(
+            <div style={{marginTop:10,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+              <Btn small onClick={handleInviteAll} disabled={inviting}>{inviting?"Sending...":"Send Game Invites to All"}</Btn>
+              {inviteStatus&&<span style={{fontSize:12,color:S.accent}}>{inviteStatus}</span>}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };
@@ -1917,6 +2012,47 @@ export default function App(){
     await supabase.from("games").update({is_active:false}).eq("id",gameId);
   };
 
+  const handleCancelGame=async(game)=>{
+    const playerCount=game.registrations.length;
+    const confirmed=window.confirm(
+      `Cancel the ${game.day}, ${game.date} game and notify ${playerCount} registered player${playerCount!==1?"s":""}?`
+    );
+    if(!confirmed)return;
+    const grp=db.groups.find(g=>g.id===game.groupId);
+    const loc=grp?getLoc(grp,game.locationId):null;
+    const{data:{session}}=await supabase.auth.getSession();
+    if(!session?.access_token)return;
+    const registeredUsers=game.registrations.map(id=>getUser(db.users,id)).filter(Boolean);
+    for(const recipient of registeredUsers){
+      try{
+        await fetch("/api/email/send",{
+          method:"POST",
+          headers:{"Content-Type":"application/json",Authorization:`Bearer ${session.access_token}`},
+          body:JSON.stringify({
+            groupId:game.groupId,
+            gameId:game.id,
+            recipientUserId:recipient.id,
+            toEmail:recipient.email,
+            eventType:"game_cancellation",
+            subject:`Game cancelled — ${game.day}, ${game.date}`,
+            body:[
+              `Hi ${recipient.firstName},`,
+              "",
+              `The ${grp?.name||"group"} game on ${game.day}, ${game.date} at ${game.time} has been cancelled.`,
+              loc?.name?`Course: ${loc.name}`:null,
+              "",
+              "We hope to see you at the next one!",
+            ].filter(Boolean).join("\n"),
+            actions:[],
+          }),
+        });
+      }catch(err){
+        console.error("Cancel notification failed for",recipient.email,err);
+      }
+    }
+    await handleDeleteGame(game.id);
+  };
+
   const handleUpdateGroup=async(updated)=>{
     const current=db.groups.find(g=>g.id===updated.id);
     setDb(d=>({...d,groups:d.groups.map(g=>g.id===updated.id?updated:g)}));
@@ -2020,21 +2156,24 @@ export default function App(){
     setDb(d=>({...d,games:d.games.map(g=>g.id===gameId?{...g,teeTimeRequests:[...(g.teeTimeRequests||[]),request]}:g)}));
   };
 
-  const handleSendGameInvite=async(game,recipient)=>{
+  const handleSendGameInvite=async(game,recipient,customBody)=>{
     const{data:{session}}=await supabase.auth.getSession();
     if(!session?.access_token)throw new Error("Sign in again to send email invites.");
 
     const location=getLoc(group,game.locationId);
     const subject=`Can you play ${game.day}?`;
-    const body=[
-      `Hi ${recipient.firstName},`,
-      "",
+    const bodyContent=customBody?.trim()||[
       `Can you play with ${group.name} on ${game.day}, ${game.date} at ${game.time}?`,
       location?.name?`Course: ${location.name}`:null,
       game.description?`Details: ${game.description}`:null,
-      "",
-      "Use one of the response links below to let the group know.",
     ].filter(Boolean).join("\n");
+    const body=[
+      `Hi ${recipient.firstName},`,
+      "",
+      bodyContent,
+      "",
+      "Use the buttons below to respond. Changed your mind? Sign in and tap \"I'm Out\" anytime.",
+    ].join("\n");
 
     const res=await fetch("/api/email/send",{
       method:"POST",
@@ -2104,7 +2243,7 @@ export default function App(){
           onOpenAddGame={id=>{setGroupId(id);setNewGameGroupId(id);setPage("splash");}}
         />
       )}
-      {page==="admin"&&group&&user&&canEdit(group,userId)&&<AdminPage group={group} user={user} users={db.users} games={db.games} onUpdateGroup={handleUpdateGroup} onSaveGame={handleSaveGame} onDeleteGame={handleDeleteGame} onSendRequest={handleSendRequest} onSimulateResponse={handleSimulateResponse} onSendGameInvite={handleSendGameInvite}/>}
+      {page==="admin"&&group&&user&&canEdit(group,userId)&&<AdminPage group={group} user={user} users={db.users} games={db.games} onUpdateGroup={handleUpdateGroup} onSaveGame={handleSaveGame} onDeleteGame={handleDeleteGame} onCancelGame={handleCancelGame} onSendRequest={handleSendRequest} onSimulateResponse={handleSimulateResponse} onSendGameInvite={handleSendGameInvite}/>}
       {page==="profile"&&user&&<ProfilePage user={user} groups={db.groups} games={db.games} onUpdateUser={handleUpdateUser}/>}
     </div>
   );

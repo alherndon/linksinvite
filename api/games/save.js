@@ -69,6 +69,10 @@ export default async function handler(req, res) {
     return res.status(403).json({ error: 'You must be a group member to add games' });
   }
 
+  if (!['superadmin', 'admin'].includes(membership.role)) {
+    return res.status(403).json({ error: 'Only group admins can create or edit games' });
+  }
+
   const { data: existingGame, error: existingError } = await adminSupabase
     .from('games')
     .select('id, group_id')

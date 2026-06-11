@@ -177,7 +177,7 @@ async function applyGameAction(supabase, notification, action) {
     status,
     message:
       status === 'registered'
-        ? 'You are registered for the game.'
+        ? "You're in! Changed your mind? Sign in to LinksInvite and tap \"I'm Out\" on the game anytime."
         : 'You have been added to the waitlist.',
   };
 }
