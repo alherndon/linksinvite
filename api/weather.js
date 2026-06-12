@@ -1,3 +1,42 @@
+// Module-level cache survives across warm Vercel invocations.
+// Golf course coordinates essentially never change, so no TTL is needed.
+// Capped at 200 entries to bound memory; oldest entry evicted when full.
+const geoCache = new Map();
+
+async function geocode(location) {
+  const key = location.toLowerCase().trim();
+  if (geoCache.has(key)) return geoCache.get(key);
+
+  const geoRes = await fetch(
+    `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(location)}&format=json&limit=1`,
+    {
+      headers: {
+        'User-Agent': 'LinksInviteGolfApp/1.0 contact@linksinvite.com',
+        'Accept-Language': 'en',
+      },
+    }
+  );
+  const geoData = await geoRes.json();
+
+  const result = {
+    lat: 33.3807,
+    lon: -84.7997,
+    courseName: location.split(',')[0].trim(),
+  };
+
+  if (geoData?.length > 0) {
+    result.lat = parseFloat(geoData[0].lat);
+    result.lon = parseFloat(geoData[0].lon);
+    result.courseName = geoData[0].display_name.split(',')[0].trim();
+  }
+
+  if (geoCache.size >= 200) {
+    geoCache.delete(geoCache.keys().next().value);
+  }
+  geoCache.set(key, result);
+  return result;
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
@@ -16,29 +55,12 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Missing location parameter' });
   }
 
-  // NEW: how many days to return (1-7). Defaults to 3 so the existing frontend
+  // How many days to return (1-7). Defaults to 3 so the existing frontend
   // is unaffected; the digest passes ?days=7 for the weekly snapshot.
   const numDays = Math.min(Math.max(parseInt(req.query.days, 10) || 3, 1), 7);
 
   try {
-    const geoUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(location)}&format=json&limit=1`;
-    const geoRes = await fetch(geoUrl, {
-      headers: {
-        'User-Agent': 'LinksInviteGolfApp/1.0 contact@linksinvite.com',
-        'Accept-Language': 'en',
-      },
-    });
-    const geoData = await geoRes.json();
-
-    let lat = 33.3807;
-    let lon = -84.7997;
-    let courseName = location.split(',')[0].trim();
-
-    if (geoData?.length > 0) {
-      lat = parseFloat(geoData[0].lat);
-      lon = parseFloat(geoData[0].lon);
-      courseName = geoData[0].display_name.split(',')[0].trim();
-    }
+    const { lat, lon, courseName } = await geocode(location);
 
     const weatherUrl =
       `https://api.open-meteo.com/v1/forecast` +
@@ -62,7 +84,6 @@ export default async function handler(req, res) {
       return 'Overcast Clouds';
     };
 
-    // CHANGED: slice to numDays instead of a hardcoded 3.
     const days = daily.time.slice(0, numDays).map((timeStr, idx) => {
       const dayName = new Date(timeStr + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long' });
       const maxTemp = Math.round(daily.temperature_2m_max[idx]);
