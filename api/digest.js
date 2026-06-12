@@ -51,9 +51,9 @@ async function processGame(game, tomorrow) {
 
   const { data: regs } = await supabaseAdmin
     .from('game_registrations')
-    .select('user_id, status, position, created_at, users ( first_name, last_name, email )')
+    .select('user_id, status, position, registered_at, users ( first_name, last_name, email )')
     .eq('game_id', game.id)
-    .order('created_at', { ascending: true });
+    .order('registered_at', { ascending: true });
 
   const registered = (regs || []).filter((r) => r.status === 'registered');
   const waitlisted = (regs || [])
