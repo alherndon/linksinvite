@@ -1,4 +1,43 @@
+import crypto from 'node:crypto';
 import { getAdminSupabaseClient } from '../_lib/supabase.js';
+
+// Resend (Svix) signatures are computed over the raw, unparsed request body.
+// Disable Vercel's automatic body parsing so we read the exact signed bytes.
+export const config = { api: { bodyParser: false } };
+
+async function readRawBody(req) {
+  const chunks = [];
+  for await (const chunk of req) {
+    chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);
+  }
+  return Buffer.concat(chunks).toString('utf8');
+}
+
+// Verify a Resend/Svix webhook signature.
+//   header  svix-signature = space-delimited list of "v1,<base64-sig>"
+//   signed  `${svix-id}.${svix-timestamp}.${rawBody}`
+//   key     base64-decoded portion of the whsec_ signing secret
+function verifySvixSignature(req, rawBody, secret) {
+  const id = req.headers['svix-id'];
+  const timestamp = req.headers['svix-timestamp'];
+  const sigHeader = req.headers['svix-signature'];
+  if (!id || !timestamp || !sigHeader) return false;
+
+  // Replay protection: reject timestamps more than 5 minutes from now.
+  const ts = parseInt(timestamp, 10);
+  if (!Number.isFinite(ts) || Math.abs(Date.now() / 1000 - ts) > 300) return false;
+
+  const secretBytes = Buffer.from(secret.replace(/^whsec_/, ''), 'base64');
+  const signedContent = `${id}.${timestamp}.${rawBody}`;
+  const expected = crypto.createHmac('sha256', secretBytes).update(signedContent).digest('base64');
+  const expectedBuf = Buffer.from(expected);
+
+  return sigHeader.split(' ').some((part) => {
+    const sig = part.includes(',') ? part.split(',')[1] : part;
+    const sigBuf = Buffer.from(sig || '');
+    return sigBuf.length === expectedBuf.length && crypto.timingSafeEqual(sigBuf, expectedBuf);
+  });
+}
 
 const RESEND_STATUS = {
   'email.sent': 'sent',
@@ -21,13 +60,23 @@ const POSTMARK_STATUS = {
   SubscriptionChange: 'subscription_changed',
 };
 
-function isAuthorized(req) {
+function isAuthorized(req, rawBody) {
   const secret = process.env.EMAIL_WEBHOOK_SECRET;
 
+  // Fail closed: if no secret is configured, reject rather than accept
+  // unauthenticated writes. For Resend, set EMAIL_WEBHOOK_SECRET to the
+  // whsec_ signing secret shown when you create the webhook endpoint.
   if (!secret) {
-    return true;
+    console.warn('EMAIL_WEBHOOK_SECRET is not set — rejecting webhook. Configure it to enable status updates.');
+    return false;
   }
 
+  // Resend signs with Svix-style signatures.
+  if (req.headers['svix-signature']) {
+    return verifySvixSignature(req, rawBody, secret);
+  }
+
+  // Fallback shared-secret scheme (e.g. Postmark or manual testing).
   const authorization = req.headers.authorization || '';
   const bearerToken = authorization.startsWith('Bearer ')
     ? authorization.slice('Bearer '.length)
@@ -105,11 +154,24 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  if (!isAuthorized(req)) {
-    return res.status(401).json({ error: 'Invalid webhook secret' });
+  let rawBody = '';
+  try {
+    rawBody = await readRawBody(req);
+  } catch {
+    return res.status(400).json({ error: 'Unable to read request body' });
   }
 
-  const payload = req.body || {};
+  if (!isAuthorized(req, rawBody)) {
+    return res.status(401).json({ error: 'Invalid webhook signature' });
+  }
+
+  let payload = {};
+  try {
+    payload = rawBody ? JSON.parse(rawBody) : {};
+  } catch {
+    return res.status(400).json({ error: 'Invalid JSON payload' });
+  }
+
   const event = normalizeWebhook(payload);
 
   if (!event.providerMessageId) {
