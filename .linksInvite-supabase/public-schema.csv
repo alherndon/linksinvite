@@ -1,101 +1,95 @@
 table_name,column_name,data_type,is_nullable,column_default
-game_registrations,game_id,uuid,NO,gen_random_uuid()
-game_registrations,user_id,uuid,NO,auth.uid()
-game_registrations,status,text,NO,'open'::text
+digest_state,game_id,uuid,NO,null
+digest_state,last_sent_signature,text,YES,null
+digest_state,last_sent_at,timestamp with time zone,YES,null
+digest_state,night_before_sent,boolean,NO,false
+game_invitees,id,uuid,NO,gen_random_uuid()
+game_invitees,game_id,uuid,NO,null
+game_invitees,golfer_id,uuid,NO,null
+game_invitees,token,uuid,NO,gen_random_uuid()
+game_invitees,created_at,timestamp with time zone,NO,now()
+game_registrations,id,uuid,NO,gen_random_uuid()
+game_registrations,game_id,uuid,NO,null
+game_registrations,user_id,uuid,NO,null
+game_registrations,status,text,NO,'registered'::text
 game_registrations,position,integer,YES,null
-game_registrations,created_at,timestamp with time zone,NO,now()
-game_registrations,updated_at,timestamp with time zone,NO,now()
+game_registrations,registered_at,timestamp with time zone,NO,now()
 games,id,uuid,NO,gen_random_uuid()
-games,group_id,uuid,NO,auth.uid()
-games,location_id,uuid,NO,auth.uid()
-games,description,text,YES,null
-games,rules,text,YES,null
-games,max_players,integer,YES,12
-games,pairing_method,text,NO,null
+games,group_id,uuid,NO,null
+games,location_id,uuid,YES,null
+games,day_of_week,text,YES,''::text
+games,scheduled_date,date,YES,null
+games,first_tee_time,time without time zone,YES,null
+games,description,text,YES,''::text
+games,rules,text,YES,''::text
+games,max_players,integer,NO,16
+games,pairing_method,text,NO,'balanced'::text
 games,assign_players,boolean,NO,false
-games,recurring,boolean,NO,true
+games,recurring,boolean,NO,false
 games,recurrence,jsonb,YES,null
-games,day_of_week,text,NO,null
-games,first_tee_time,time with time zone,NO,null
-games,scheduled_date,date,NO,null
 games,is_active,boolean,NO,true
 games,created_at,timestamp with time zone,NO,now()
-games,updated_at,timestamp with time zone,NO,now()
-group_invites,group_id,uuid,NO,auth.uid()
-group_invites,user_id,uuid,NO,auth.uid()
-group_invites,email,text,NO,'NOT NULL'::text
-group_invites,expires_at,timestamp with time zone,YES,now()
-group_invites,accepted_at,timestamp with time zone,YES,now()
-group_invites,id,uuid,NO,gen_random_uuid()
+games_phase1,id,uuid,NO,gen_random_uuid()
+games_phase1,owner_id,uuid,NO,null
+games_phase1,location,text,NO,'Newnan Country Club'::text
+games_phase1,game_date,date,NO,null
+games_phase1,first_tee_time,time without time zone,NO,null
+games_phase1,tee_times,integer,NO,5
+games_phase1,tee_interval_minutes,integer,NO,10
+games_phase1,capacity,integer,YES,null
+games_phase1,status,text,NO,'open'::text
+games_phase1,created_at,timestamp with time zone,NO,now()
+golfers,id,uuid,NO,gen_random_uuid()
+golfers,owner_id,uuid,NO,null
+golfers,name,text,NO,null
+golfers,email,text,NO,null
+golfers,created_at,timestamp with time zone,NO,now()
+group_memberships,id,uuid,NO,gen_random_uuid()
 group_memberships,group_id,uuid,NO,null
 group_memberships,user_id,uuid,NO,null
-group_memberships,role,text,YES,'player'::text
+group_memberships,role,text,NO,'player'::text
+group_memberships,joined_at,timestamp with time zone,NO,now()
 groups,id,uuid,NO,gen_random_uuid()
 groups,name,text,NO,null
-groups,description,text,YES,null
-groups,is_active,boolean,NO,true
+groups,description,text,YES,''::text
 groups,created_at,timestamp with time zone,NO,now()
-groups,updated_at,timestamp with time zone,NO,now()
 locations,location_id,uuid,NO,gen_random_uuid()
+locations,group_id,uuid,NO,null
+locations,name,text,NO,null
+locations,address,text,YES,''::text
+locations,tee_time_contact,jsonb,YES,"'{""name"": """", ""email"": """", ""phone"": """"}'::jsonb"
+locations,is_active,boolean,NO,true
 locations,created_at,timestamp with time zone,NO,now()
-locations,updated_at,timestamp with time zone,YES,now()
-locations,group_id,uuid,YES,auth.uid()
-locations,name,text,YES,null
-locations,address,text,YES,null
-locations,tee_time_contact,jsonb,YES,null
-locations,is_active,boolean,YES,true
 notification_events,id,uuid,NO,gen_random_uuid()
 notification_events,group_id,uuid,YES,null
 notification_events,game_id,uuid,YES,null
-notification_events,recipient_user_id,uuid,YES,null
-notification_events,channel,text,NO,'email'::text
-notification_events,event_type,text,NO,null
-notification_events,provider,text,YES,null
-notification_events,provider_message_id,text,YES,null
-notification_events,to_email,text,NO,null
-notification_events,from_email,text,YES,null
-notification_events,subject,text,NO,null
-notification_events,body,text,NO,null
-notification_events,status,text,NO,'queued'::text
-notification_events,response_token_hash,text,NO,null
-notification_events,response_action,text,YES,null
-notification_events,response_payload,jsonb,YES,null
-notification_events,sent_at,timestamp with time zone,YES,null
+notification_events,user_id,uuid,YES,null
+notification_events,event_type,text,NO,'invite'::text
+notification_events,response_token_hash,text,YES,null
 notification_events,responded_at,timestamp with time zone,YES,null
-notification_events,created_at,timestamp with time zone,NO,now()
-notification_events,updated_at,timestamp with time zone,NO,now()
-notification_preferences,user_id,uuid,NO,auth.uid()
-notification_preferences,group_id,uuid,NO,auth.uid()
-notification_preferences,email_enabled,boolean,NO,true
-notification_preferences,game_invites,boolean,NO,true
-notification_preferences,game_reminders,boolean,NO,true
-notification_preferences,tee_time_updates,boolean,NO,true
-recurring_game_series,id,bigint,NO,null
-recurring_game_series,group_id,uuid,NO,auth.uid()
-recurring_game_series,recurrence,jsonb,NO,null
-recurring_game_series,template_fields,ARRAY,YES,null
-recurring_game_series,next_run_at,timestamp with time zone,YES,now()
-recurring_game_series,is_active,boolean,NO,true
-tee_time_requests,response_token_hash,text,NO,null
-tee_time_requests,responded_at,timestamp with time zone,NO,now()
-tee_time_requests,game_id,uuid,NO,auth.uid()
-tee_time_requests,to_pro_shop_name,text,YES,null
-tee_time_requests,to_pro_shop_email,text,YES,null
+notification_events,response_status,text,YES,null
+notification_events,sent_at,timestamp with time zone,NO,now()
+notification_events,provider_message_id,text,YES,null
+notification_events,delivery_status,text,YES,null
+registrations,id,uuid,NO,gen_random_uuid()
+registrations,game_id,uuid,NO,null
+registrations,golfer_id,uuid,NO,null
+registrations,status,text,NO,null
+registrations,registered_at,timestamp with time zone,NO,now()
+tee_time_requests,id,uuid,NO,gen_random_uuid()
+tee_time_requests,game_id,uuid,NO,null
+tee_time_requests,to_pro_shop_name,text,YES,''::text
+tee_time_requests,to_pro_shop_email,text,YES,''::text
+tee_time_requests,requested_time,timestamp with time zone,YES,null
+tee_time_requests,response_token_hash,text,YES,null
 tee_time_requests,status,text,NO,'pending'::text
 tee_time_requests,response,jsonb,YES,null
-tee_time_requests,created_at,timestamp with time zone,NO,now()
-tee_time_requests,updated_at,timestamp with time zone,NO,now()
 tee_time_requests,sent_at,timestamp with time zone,NO,now()
-tee_time_requests,expires_at,timestamp with time zone,NO,now()
-tee_time_requests,response_id,uuid,NO,gen_random_uuid()
-tee_time_requests,requested_time,timestamp with time zone,NO,now()
-tee_times,tee_times_id,uuid,NO,gen_random_uuid()
-tee_times,game_id,uuid,NO,auth.uid()
-tee_times,created_at,timestamp with time zone,NO,now()
-tee_times,slots,integer,NO,null
-tee_times,start_time,timestamp with time zone,NO,now()
-tee_times,day_of_week,text,NO,null
 users,id,uuid,NO,gen_random_uuid()
-users,first_name,text,NO,null
-users,last_name,text,NO,null
-users,email,text,NO,null
+users,first_name,text,NO,''::text
+users,last_name,text,NO,''::text
+users,email,text,NO,''::text
+users,phone,text,NO,''::text
+users,handicap,numeric,YES,0
+users,ghin,text,YES,''::text
+users,created_at,timestamp with time zone,NO,now()
