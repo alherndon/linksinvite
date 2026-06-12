@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useId } from "react";
 import { supabase, supabaseConfigError, supabaseHost } from "./supabaseClient";
 
 const S = {
@@ -266,33 +266,40 @@ const Btn=({children,onClick,variant="primary",small,disabled,full,style:sx})=>{
   const v={primary:{background:S.accent,color:"#0d1a0e",border:"none"},secondary:{background:"transparent",color:S.accent,border:`1px solid ${S.accent}55`},danger:{background:"transparent",color:S.danger,border:`1px solid ${S.danger}55`},gold:{background:S.gold,color:"#1a1200",border:"none"},ghost:{background:S.accentSubtle,color:S.accent,border:`1px solid ${S.accent}33`},info:{background:S.infoBg,color:S.info,border:`1px solid ${S.info}44`}};
   return <button onClick={onClick} disabled={disabled} style={{...v[variant],padding:small?"6px 14px":"9px 20px",borderRadius:8,fontSize:small?12:14,fontWeight:600,cursor:disabled?"not-allowed":"pointer",opacity:disabled?0.45:1,transition:"all 0.15s",fontFamily:"inherit",whiteSpace:"nowrap",width:full?"100%":"auto",...sx}}>{children}</button>;
 };
-const Inp=({label,value,onChange,placeholder,type="text",required,hint,error})=>(
+const Inp=({label,value,onChange,placeholder,type="text",required,hint,error})=>{
+  const id=useId();
+  return(
   <div style={{marginBottom:14}}>
-    {label&&<label style={{display:"block",fontSize:12,fontWeight:600,color:S.textMuted,marginBottom:5,letterSpacing:"0.05em",textTransform:"uppercase"}}>{label}{required&&<span style={{color:S.accent,marginLeft:3}}>*</span>}</label>}
-    <input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder}
+    {label&&<label htmlFor={id} style={{display:"block",fontSize:12,fontWeight:600,color:S.textMuted,marginBottom:5,letterSpacing:"0.05em",textTransform:"uppercase"}}>{label}{required&&<span style={{color:S.accent,marginLeft:3}}>*</span>}</label>}
+    <input id={id} type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder}
       style={{width:"100%",background:S.surface,border:`1px solid ${error?S.danger:S.cardBorder}`,borderRadius:8,padding:"9px 12px",color:S.text,fontSize:14,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}
       onFocus={e=>e.target.style.borderColor=error?S.danger:S.accent}
       onBlur={e=>e.target.style.borderColor=error?S.danger:S.cardBorder}/>
     {hint&&<p style={{margin:"4px 0 0",fontSize:11,color:S.textDim}}>{hint}</p>}
     {error&&<p style={{margin:"4px 0 0",fontSize:11,color:S.danger}}>{error}</p>}
   </div>
-);
-const Sel=({label,value,onChange,options})=>(
+);};
+const Sel=({label,value,onChange,options})=>{
+  const id=useId();
+  return(
   <div style={{marginBottom:14}}>
-    {label&&<label style={{display:"block",fontSize:12,fontWeight:600,color:S.textMuted,marginBottom:5,letterSpacing:"0.05em",textTransform:"uppercase"}}>{label}</label>}
-    <select value={value} onChange={e=>onChange(e.target.value)} style={{width:"100%",background:S.surface,border:`1px solid ${S.cardBorder}`,borderRadius:8,padding:"9px 12px",color:S.text,fontSize:14,fontFamily:"inherit",outline:"none",cursor:"pointer"}}>
+    {label&&<label htmlFor={id} style={{display:"block",fontSize:12,fontWeight:600,color:S.textMuted,marginBottom:5,letterSpacing:"0.05em",textTransform:"uppercase"}}>{label}</label>}
+    <select id={id} value={value} onChange={e=>onChange(e.target.value)} style={{width:"100%",background:S.surface,border:`1px solid ${S.cardBorder}`,borderRadius:8,padding:"9px 12px",color:S.text,fontSize:14,fontFamily:"inherit",outline:"none",cursor:"pointer"}}>
       {options.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
     </select>
   </div>
-);
-const Tog=({label,value,onChange,hint})=>(
+);};
+const Tog=({label,value,onChange,hint})=>{
+  const id=useId();
+  return(
   <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14,padding:"10px 0",borderBottom:`1px solid ${S.cardBorder}33`}}>
-    <div><div style={{fontSize:14,color:S.text,fontWeight:500}}>{label}</div>{hint&&<div style={{fontSize:12,color:S.textMuted,marginTop:2}}>{hint}</div>}</div>
-    <div onClick={()=>onChange(!value)} style={{width:44,height:24,borderRadius:12,background:value?S.accent:S.cardBorder,position:"relative",cursor:"pointer",transition:"background 0.2s",flexShrink:0}}>
+    <div id={id}><div style={{fontSize:14,color:S.text,fontWeight:500}}>{label}</div>{hint&&<div style={{fontSize:12,color:S.textMuted,marginTop:2}}>{hint}</div>}</div>
+    <button type="button" role="switch" aria-checked={value} aria-labelledby={id} onClick={()=>onChange(!value)}
+      style={{width:44,height:24,borderRadius:12,background:value?S.accent:S.cardBorder,position:"relative",cursor:"pointer",transition:"background 0.2s",flexShrink:0,border:"none",padding:0}}>
       <div style={{position:"absolute",top:3,left:value?23:3,width:18,height:18,borderRadius:9,background:value?"#0d1a0e":S.textMuted,transition:"left 0.2s"}}/>
-    </div>
+    </button>
   </div>
-);
+);};
 const Card=({children,style:sx})=>(
   <div style={{background:S.card,border:`1px solid ${S.cardBorder}`,borderRadius:14,padding:"20px 22px",...sx}}>{children}</div>
 );
@@ -306,14 +313,16 @@ const Avatar=({user,size=36})=>(
   <div style={{width:size,height:size,borderRadius:size*0.25,background:S.accentSubtle,display:"flex",alignItems:"center",justifyContent:"center",fontSize:size*0.35,fontWeight:700,color:S.accent,flexShrink:0}}>{initials(user)}</div>
 );
 const Divider=()=><div style={{height:1,background:S.cardBorder,margin:"16px 0"}}/>;
-const TA=({label,value,onChange,rows=3})=>(
+const TA=({label,value,onChange,rows=3})=>{
+  const id=useId();
+  return(
   <div style={{marginBottom:14}}>
-    {label&&<label style={{display:"block",fontSize:12,fontWeight:600,color:S.textMuted,marginBottom:5,letterSpacing:"0.05em",textTransform:"uppercase"}}>{label}</label>}
-    <textarea value={value} onChange={e=>onChange(e.target.value)} rows={rows}
+    {label&&<label htmlFor={id} style={{display:"block",fontSize:12,fontWeight:600,color:S.textMuted,marginBottom:5,letterSpacing:"0.05em",textTransform:"uppercase"}}>{label}</label>}
+    <textarea id={id} value={value} onChange={e=>onChange(e.target.value)} rows={rows}
       style={{width:"100%",background:S.surface,border:`1px solid ${S.cardBorder}`,borderRadius:8,padding:"9px 12px",color:S.text,fontSize:13,fontFamily:"inherit",resize:"vertical",outline:"none",boxSizing:"border-box"}}
       onFocus={e=>e.target.style.borderColor=S.accent} onBlur={e=>e.target.style.borderColor=S.cardBorder}/>
   </div>
-);
+);};
 
 const SetupErrorPage=()=>(
   <div style={{minHeight:"100vh",background:S.bg,color:S.text,fontFamily:"'DM Sans','Segoe UI',sans-serif",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
