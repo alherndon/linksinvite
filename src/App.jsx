@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase, supabaseConfigError, supabaseHost } from "./supabaseClient";
 
 const S = {
@@ -136,6 +136,7 @@ function parseUiDate(s){
 }
 function parseUiTime(s){
   if(!s)return null;
+  if(/^\d{2}:\d{2}$/.test(s))return s+":00";
   const m=s.match(/(\d+):(\d+)\s*(AM|PM)/i);
   if(!m)return null;
   let h=parseInt(m[1]);
@@ -143,6 +144,28 @@ function parseUiTime(s){
   if(isPM&&h!==12)h+=12;
   if(!isPM&&h===12)h=0;
   return`${String(h).padStart(2,"0")}:${String(mn).padStart(2,"0")}:00`;
+}
+function uiDateToIso(s){
+  if(!s)return"";
+  if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;
+  const d=new Date(s);
+  if(isNaN(d))return"";
+  return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+}
+function uiTimeToHHMM(s){
+  if(!s)return"";
+  if(/^\d{2}:\d{2}$/.test(s))return s;
+  const m=s.match(/(\d+):(\d+)\s*(AM|PM)/i);
+  if(!m)return"";
+  let h=parseInt(m[1]);
+  const mn=parseInt(m[2]),isPM=m[3].toUpperCase()==="PM";
+  if(isPM&&h!==12)h+=12;
+  if(!isPM&&h===12)h=0;
+  return`${String(h).padStart(2,"0")}:${String(mn).padStart(2,"0")}`;
+}
+async function getSessionToken(){
+  const{data:{session}}=await supabase.auth.getSession();
+  return session?.access_token||null;
 }
 const toUiUser=row=>({
   id:row.id,
@@ -633,6 +656,60 @@ const AuthPage=()=>{
   );
 };
 
+const GroupSearch=({value,onChange,error,required})=>{
+  const [results,setResults]=useState([]);
+  const [open,setOpen]=useState(false);
+  const [searching,setSearching]=useState(false);
+  const timer=useRef(null);
+  useEffect(()=>{
+    clearTimeout(timer.current);
+    if(value.trim().length<2){setResults([]);setOpen(false);return;}
+    timer.current=setTimeout(async()=>{
+      setSearching(true);
+      try{
+        const token=await getSessionToken();
+        if(!token)return;
+        const res=await fetch("/api/groups/onboard",{method:"POST",headers:{"Content-Type":"application/json",Authorization:`Bearer ${token}`},body:JSON.stringify({action:"search",joinCode:value.trim()})});
+        const payload=await res.json().catch(()=>({}));
+        if(res.ok){setResults(payload.data?.groups||[]);setOpen(true);}
+      }catch{}finally{setSearching(false);}
+    },300);
+    return()=>clearTimeout(timer.current);
+  },[value]);
+  return(
+    <div style={{marginBottom:14,position:"relative"}}>
+      <label style={{display:"block",fontSize:12,fontWeight:600,color:S.textMuted,marginBottom:5,letterSpacing:"0.05em",textTransform:"uppercase"}}>
+        Group name or invite code{required&&<span style={{color:S.accent,marginLeft:3}}>*</span>}
+      </label>
+      <input type="text" value={value} onChange={e=>{onChange(e.target.value);if(e.target.value.trim().length>=2)setOpen(true);}} placeholder="Search by group name" autoComplete="off"
+        style={{width:"100%",background:S.surface,border:`1px solid ${error?S.danger:S.cardBorder}`,borderRadius:8,padding:"9px 12px",color:S.text,fontSize:14,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}
+        onFocus={e=>{e.target.style.borderColor=S.accent;if(value.trim().length>=2&&results.length)setOpen(true);}}
+        onBlur={e=>{e.target.style.borderColor=error?S.danger:S.cardBorder;setTimeout(()=>setOpen(false),150);}}/>
+      {searching&&<div style={{fontSize:11,color:S.textDim,marginTop:3}}>Searching...</div>}
+      {open&&(results.length>0?(
+        <div style={{position:"absolute",zIndex:200,left:0,right:0,background:S.card,border:`1px solid ${S.cardBorder}`,borderRadius:8,marginTop:4,boxShadow:"0 8px 24px rgba(0,0,0,0.3)",overflow:"hidden",maxHeight:220,overflowY:"auto"}}>
+          {results.map(g=>(
+            <button key={g.id} type="button"
+              onMouseDown={()=>{onChange(g.name);setOpen(false);}}
+              style={{display:"block",width:"100%",textAlign:"left",padding:"10px 14px",background:"transparent",border:"none",borderBottom:`1px solid ${S.cardBorder}33`,cursor:"pointer",fontFamily:"inherit",color:S.text,fontSize:13}}
+              onMouseEnter={e=>e.currentTarget.style.background=S.surface}
+              onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+              <div style={{fontWeight:600}}>{g.name}</div>
+              {g.description&&<div style={{fontSize:11,color:S.textMuted,marginTop:2}}>{g.description}</div>}
+              {g.memberCount>0&&<div style={{fontSize:11,color:S.textDim}}>{g.memberCount} member{g.memberCount!==1?"s":""}</div>}
+            </button>
+          ))}
+        </div>
+      ):(value.trim().length>=2&&!searching&&(
+        <div style={{position:"absolute",zIndex:200,left:0,right:0,background:S.card,border:`1px solid ${S.cardBorder}`,borderRadius:8,marginTop:4,padding:"10px 14px",fontSize:13,color:S.textMuted}}>
+          No groups found for "{value}"
+        </div>
+      )))}
+      {error&&<p style={{margin:"4px 0 0",fontSize:11,color:S.danger}}>{error}</p>}
+    </div>
+  );
+};
+
 const NoGroupsPage=({user,loadError,onCreateGroup,onJoinGroup,onSignOut})=>{
   const [mode,setMode]=useState("create");
   const [groupName,setGroupName]=useState("");
@@ -699,7 +776,7 @@ const NoGroupsPage=({user,loadError,onCreateGroup,onJoinGroup,onSignOut})=>{
             <Inp label="Address" value={locationAddress} onChange={setLocationAddress} placeholder="200 CC Dr, Newnan, GA"/>
           </>
         ):(
-          <Inp label="Group name or invite code" value={joinCode} onChange={setJoinCode} required placeholder="Search by group name"/>
+          <GroupSearch value={joinCode} onChange={setJoinCode} required/>
         )}
         <div style={{display:"flex",gap:8,marginTop:8}}>
           <Btn full onClick={submit} disabled={loading}>{loading?"Saving...":mode==="create"?"Create group":"Join group"}</Btn>
@@ -782,7 +859,7 @@ const GroupsPage=({user,groups,activeGroupId,onCreateGroup,onJoinGroup,onOpenGro
             <Inp label="Address" value={locationAddress} onChange={setLocationAddress} placeholder="200 CC Dr, Newnan, GA"/>
           </>
         ):(
-          <Inp label="Group name or invite code" value={joinCode} onChange={setJoinCode} required placeholder="Search by group name"/>
+          <GroupSearch value={joinCode} onChange={setJoinCode} required/>
         )}
         <div style={{display:"flex",justifyContent:"flex-end",marginTop:8}}>
           <Btn onClick={submit} disabled={loading}>{loading?"Saving...":mode==="create"?"Create Group":"Join Group"}</Btn>
@@ -1270,18 +1347,18 @@ const LocationsTab=({group,onUpdate,superAdmin})=>{
 const GameForm=({game,group,adminUser,onSave,onCancel,onSendRequest})=>{
   const isNew=!game;
   const recurrenceDefault={frequency:"weekly",interval:1,weeklyDays:["Saturday"],monthlyOption:"dayOfMonth",monthlyDay:1,monthlyWeek:"first",monthlyWeekday:"Saturday",yearlyMonth:"January",yearlyDay:1,endType:"never",endAfter:10,endDate:""};
-  const defaultForm={day:"Saturday",date:"",time:"8:00 AM",locationId:group.locations[0]?.id||"",description:"",rules:DEFAULT_RULES,pairingMethod:"balanced",assignFoursomes:true,maxPlayers:16,recurring:false,recurrence:recurrenceDefault};
+  const defaultForm={day:"Saturday",date:"",time:"",locationId:group.locations[0]?.id||"",description:"",rules:DEFAULT_RULES,pairingMethod:"balanced",assignFoursomes:true,maxPlayers:16,recurring:false,recurrence:recurrenceDefault};
   const blankLocation=()=>({id:uid(),name:"",address:"",teeTimeContact:{name:"",email:"",phone:""}});
   const draftFromLocation=loc=>loc?{id:loc.id,name:loc.name||"",address:loc.address||"",teeTimeContact:{name:loc.teeTimeContact?.name||"",email:loc.teeTimeContact?.email||"",phone:loc.teeTimeContact?.phone||""}}:blankLocation();
   const initialLocation=getLoc(group,(game||defaultForm).locationId);
-  const [form,setForm]=useState(isNew?defaultForm:{...game,recurrence:game.recurrence||recurrenceDefault,recurring:game.recurring||false});
+  const [form,setForm]=useState(isNew?defaultForm:{...game,date:uiDateToIso(game.date),time:uiTimeToHHMM(game.time),recurrence:game.recurrence||recurrenceDefault,recurring:game.recurring||false});
   const [locationMode,setLocationMode]=useState(initialLocation?"existing":"new");
   const [locationDraft,setLocationDraft]=useState(()=>draftFromLocation(initialLocation));
   const [saveError,setSaveError]=useState("");
   const [saved,setSaved]=useState(false);
   const [showModal,setShowModal]=useState(false);
   useEffect(()=>{
-    if(game){setForm({...game,recurrence:game.recurrence||recurrenceDefault,recurring:game.recurring||false});}
+    if(game){setForm({...game,date:uiDateToIso(game.date),time:uiTimeToHHMM(game.time),recurrence:game.recurrence||recurrenceDefault,recurring:game.recurring||false});}
   },[game?.id]);
   useEffect(()=>{
     if(locationMode!=="existing")return;
@@ -1289,7 +1366,7 @@ const GameForm=({game,group,adminUser,onSave,onCancel,onSendRequest})=>{
     if(loc)setLocationDraft(draftFromLocation(loc));
   },[locationMode,form.locationId,group.locations.length]);
 
-  const sf=(k,v)=>{setSaveError("");setForm(f=>({...f,[k]:v}));};
+  const sf=(k,v)=>{setSaveError("");setForm(f=>{const next={...f,[k]:v};if(k==="date"&&v){const d=new Date(v+"T12:00:00Z");if(!isNaN(d)){const days=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];next.day=days[d.getUTCDay()];}}return next;});};
   const sr=(k,v)=>setForm(f=>({...f,recurrence:{...f.recurrence,[k]:v}}));
   const sl=(k,v)=>{setSaveError("");setLocationDraft(l=>({...l,[k]:v}));};
   const sc=(k,v)=>{setSaveError("");setLocationDraft(l=>({...l,teeTimeContact:{...l.teeTimeContact,[k]:v}}));};
@@ -1327,8 +1404,8 @@ const GameForm=({game,group,adminUser,onSave,onCancel,onSendRequest})=>{
         </div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
           <Sel label="Day" value={form.day} onChange={v=>sf("day",v)} options={["Saturday","Sunday","Monday","Tuesday","Wednesday","Thursday","Friday"].map(d=>({value:d,label:d}))}/>
-          <Inp label="Date" value={form.date} onChange={v=>sf("date",v)} placeholder="June 7, 2025" required/>
-          <Inp label="1st Tee Time" value={form.time} onChange={v=>sf("time",v)} placeholder="8:00 AM" required/>
+          <Inp label="Date" type="date" value={form.date} onChange={v=>sf("date",v)} required/>
+          <Inp label="1st Tee Time" type="time" value={form.time} onChange={v=>sf("time",v)} required/>
         </div>
         <Card style={{marginBottom:14,background:S.surface,border:`1px solid ${S.cardBorder}`}}>
           <SecTitle>Course</SecTitle>

@@ -237,15 +237,8 @@ export default async function handler(req, res) {
       .insert({
         group_id: groupId,
         game_id: gameId,
-        recipient_user_id: recipientUserId,
-        channel: 'email',
+        user_id: recipientUserId,
         event_type: eventType,
-        provider: process.env.EMAIL_PROVIDER || null,
-        to_email: toEmail,
-        from_email: fromEmail,
-        subject,
-        body,
-        status: 'queued',
         response_token_hash: responseTokenHash,
       })
       .select()
@@ -270,13 +263,7 @@ export default async function handler(req, res) {
       const sentAt = new Date().toISOString();
       const { data: updatedEvent, error: updateError } = await adminSupabase
         .from('notification_events')
-        .update({
-          provider: process.env.EMAIL_PROVIDER || event.provider,
-          provider_message_id: providerMessageId,
-          status: 'sent',
-          sent_at: sentAt,
-          updated_at: sentAt,
-        })
+        .update({ sent_at: sentAt })
         .eq('id', event.id)
         .select()
         .single();
@@ -293,16 +280,6 @@ export default async function handler(req, res) {
         responseLinks,
       });
     } catch (sendError) {
-      const failedAt = new Date().toISOString();
-      await adminSupabase
-        .from('notification_events')
-        .update({
-          status: 'failed',
-          response_payload: { error: sendError.message },
-          updated_at: failedAt,
-        })
-        .eq('id', event.id);
-
       return res.status(502).json({
         error: 'Unable to send email',
         details: sendError.message,

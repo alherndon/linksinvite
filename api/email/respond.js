@@ -70,9 +70,7 @@ function sendResult(req, res, status, payload) {
 async function findNotification(supabase, token) {
   return supabase
     .from('notification_events')
-    .select(
-      'id, group_id, game_id, recipient_user_id, to_email, subject, status, response_action, responded_at'
-    )
+    .select('id, group_id, game_id, user_id, event_type, response_token_hash, responded_at, response_status')
     .eq('response_token_hash', hashToken(token))
     .maybeSingle();
 }
@@ -122,7 +120,7 @@ async function getRegistrationCounts(supabase, gameId) {
 }
 
 async function applyGameAction(supabase, notification, action) {
-  if (!notification.game_id || !notification.recipient_user_id) {
+  if (!notification.game_id || !notification.user_id) {
     return {
       applied: false,
       message:
@@ -135,7 +133,7 @@ async function applyGameAction(supabase, notification, action) {
       .from('game_registrations')
       .delete()
       .eq('game_id', notification.game_id)
-      .eq('user_id', notification.recipient_user_id);
+      .eq('user_id', notification.user_id);
 
     if (error) {
       throw new Error('Unable to update registration');
@@ -162,10 +160,9 @@ async function applyGameAction(supabase, notification, action) {
     .from('game_registrations')
     .upsert({
       game_id: notification.game_id,
-      user_id: notification.recipient_user_id,
+      user_id: notification.user_id,
       status,
       position,
-      updated_at: new Date().toISOString(),
     });
 
   if (error) {
@@ -237,7 +234,7 @@ export default async function handler(req, res) {
     if (notification.responded_at) {
       return sendResult(req, res, 409, {
         title: 'Already Recorded',
-        message: `This email was already answered with "${notification.response_action}".`,
+        message: `This response link was already used.`,
         error: 'This notification was already answered',
       });
     }
@@ -246,17 +243,7 @@ export default async function handler(req, res) {
     const respondedAt = new Date().toISOString();
     const { data: updatedNotification, error: updateError } = await supabase
       .from('notification_events')
-      .update({
-        status: 'responded',
-        response_action: action,
-        response_payload: {
-          action,
-          result,
-          respondedAt,
-        },
-        responded_at: respondedAt,
-        updated_at: respondedAt,
-      })
+      .update({ response_status: action, responded_at: respondedAt })
       .eq('id', notification.id)
       .is('responded_at', null)
       .select()

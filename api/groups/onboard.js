@@ -162,5 +162,44 @@ export default async function handler(req, res) {
     });
   }
 
-  return res.status(400).json({ error: 'action must be "create" or "join"' });
+  // ── SEARCH ──────────────────────────────────────────────────────────────────
+  if (action === 'search') {
+    const query = (joinCode || '').trim();
+    if (!query) return res.status(200).json({ data: { groups: [] } });
+
+    const [{ data: exact }, { data: partial }] = await Promise.all([
+      adminSupabase.from('groups').select('id, name, description').ilike('name', query).limit(5),
+      adminSupabase.from('groups').select('id, name, description').ilike('name', `%${query}%`).limit(10),
+    ]);
+
+    const seen = new Set();
+    const all = [...(exact || []), ...(partial || [])].filter((g) => {
+      if (seen.has(g.id)) return false;
+      seen.add(g.id);
+      return true;
+    });
+
+    const groupIds = all.map((g) => g.id);
+    const memberCounts = {};
+    if (groupIds.length > 0) {
+      const { data: mems } = await adminSupabase
+        .from('group_memberships').select('group_id').in('group_id', groupIds);
+      for (const m of mems || []) {
+        memberCounts[m.group_id] = (memberCounts[m.group_id] || 0) + 1;
+      }
+    }
+
+    return res.status(200).json({
+      data: {
+        groups: all.map((g) => ({
+          id: g.id,
+          name: g.name,
+          description: g.description || '',
+          memberCount: memberCounts[g.id] || 0,
+        })),
+      },
+    });
+  }
+
+  return res.status(400).json({ error: 'action must be "create", "join", or "search"' });
 }
