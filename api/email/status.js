@@ -181,19 +181,9 @@ export default async function handler(req, res) {
   }
 
   const supabase = getAdminSupabaseClient();
-  const now = new Date().toISOString();
   const { data, error } = await supabase
     .from('notification_events')
-    .update({
-      provider: event.provider,
-      status: event.status,
-      response_payload: {
-        providerEventType: event.eventType,
-        providerOccurredAt: event.occurredAt,
-        webhook: payload,
-      },
-      updated_at: now,
-    })
+    .update({ delivery_status: event.status })
     .eq('provider_message_id', event.providerMessageId)
     .select()
     .maybeSingle();

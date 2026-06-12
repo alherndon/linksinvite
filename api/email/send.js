@@ -261,9 +261,11 @@ export default async function handler(req, res) {
       });
 
       const sentAt = new Date().toISOString();
+      const update = { sent_at: sentAt };
+      if (providerMessageId) update.provider_message_id = providerMessageId;
       const { data: updatedEvent, error: updateError } = await adminSupabase
         .from('notification_events')
-        .update({ sent_at: sentAt })
+        .update(update)
         .eq('id', event.id)
         .select()
         .single();
