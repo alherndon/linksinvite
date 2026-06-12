@@ -96,24 +96,16 @@ export default async function handler(req, res) {
         .json({ error: 'Group name or invite code is required' });
     }
 
-    // Search by exact name first, then partial match
-    let foundGroup = null;
+    // Exact name match only — partial/substring search is intentionally removed
+    // to prevent anyone from joining a group by guessing a fragment of its name.
+    // Users should find the group via the search action first, then confirm join.
     const { data: exact } = await adminSupabase
       .from('groups')
       .select('id, name, description')
       .ilike('name', joinCode.trim())
       .limit(1);
 
-    foundGroup = exact?.[0] || null;
-
-    if (!foundGroup) {
-      const { data: partial } = await adminSupabase
-        .from('groups')
-        .select('id, name, description')
-        .ilike('name', `%${joinCode.trim()}%`)
-        .limit(1);
-      foundGroup = partial?.[0] || null;
-    }
+    const foundGroup = exact?.[0] || null;
 
     if (!foundGroup) {
       return res
