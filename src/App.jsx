@@ -2049,12 +2049,21 @@ export default function App(){
     })}));
 
     // persist
-    if(isReg||isWait){
-      await supabase.from("game_registrations").delete().eq("game_id",gameId).eq("user_id",userId);
-    }else{
-      const status=isFull?"waitlisted":"registered";
-      const position=isFull?game.waitlist.length+1:null;
-      await supabase.from("game_registrations").upsert({game_id:gameId,user_id:userId,status,position});
+    const{error}=(isReg||isWait)
+      ?await supabase.from("game_registrations").delete().eq("game_id",gameId).eq("user_id",userId)
+      :await supabase.from("game_registrations").upsert({
+        game_id:gameId,
+        user_id:userId,
+        status:isFull?"waitlisted":"registered",
+        position:isFull?game.waitlist.length+1:null,
+      });
+
+    // The write is a direct (RLS-governed) browser call. If it fails, the
+    // optimistic update above lied — re-pull server truth so the roster never
+    // shows a player the database didn't actually store.
+    if(error){
+      console.error("Registration write failed:",error);
+      await loadData(userId);
     }
   };
 

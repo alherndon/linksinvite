@@ -1,6 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
 import {
-  createUserSupabaseClient,
   getAdminSupabaseClient,
   getBearerToken,
 } from '../_lib/supabase.js';
@@ -209,15 +208,18 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'actions must be an array' });
     }
 
-    const userSupabase = createUserSupabaseClient(accessToken);
+    // Validate the token with the service-role client (getUser(token)).
+    // A user-scoped client + getUser() with no argument has no session and
+    // always 401s, and the membership check below must not depend on RLS.
+    const adminSupabase = getAdminSupabaseClient();
     const { data: authData, error: authError } =
-      await userSupabase.auth.getUser();
+      await adminSupabase.auth.getUser(accessToken);
 
-    if (authError || !authData.user) {
+    if (authError || !authData?.user) {
       return res.status(401).json({ error: 'Invalid access token' });
     }
 
-    await assertGroupMember(userSupabase, groupId, authData.user.id);
+    await assertGroupMember(adminSupabase, groupId, authData.user.id);
 
     const rawToken = randomBytes(32).toString('hex');
     const responseTokenHash = hashToken(rawToken);
@@ -231,14 +233,19 @@ export default async function handler(req, res) {
       ...responseLinks.map(({ action, url }) => `${action.toUpperCase()}: ${url}`),
     ].join('\n');
 
-    const adminSupabase = getAdminSupabaseClient();
     const { data: event, error: insertError } = await adminSupabase
       .from('notification_events')
       .insert({
         group_id: groupId,
         game_id: gameId,
-        user_id: recipientUserId,
+        recipient_user_id: recipientUserId,
+        channel: 'email',
         event_type: eventType,
+        to_email: toEmail,
+        from_email: fromEmail,
+        subject,
+        body,
+        status: 'queued',
         response_token_hash: responseTokenHash,
       })
       .select()
@@ -261,7 +268,7 @@ export default async function handler(req, res) {
       });
 
       const sentAt = new Date().toISOString();
-      const update = { sent_at: sentAt };
+      const update = { sent_at: sentAt, delivery_status: 'sent' };
       if (providerMessageId) update.provider_message_id = providerMessageId;
       const { data: updatedEvent, error: updateError } = await adminSupabase
         .from('notification_events')

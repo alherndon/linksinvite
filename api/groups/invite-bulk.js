@@ -1,5 +1,4 @@
 import {
-  createUserSupabaseClient,
   getAdminSupabaseClient,
   getBearerToken,
 } from '../_lib/supabase.js';
@@ -23,13 +22,14 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Missing groupId or emails array' });
   }
 
-  const userSupabase = createUserSupabaseClient(accessToken);
-  const { data: authData, error: authError } = await userSupabase.auth.getUser();
+  const adminSupabase = getAdminSupabaseClient();
+  const { data: authData, error: authError } =
+    await adminSupabase.auth.getUser(accessToken);
   if (authError || !authData?.user) {
     return res.status(401).json({ error: 'Invalid access token' });
   }
 
-  const { data: membership } = await userSupabase
+  const { data: membership } = await adminSupabase
     .from('group_memberships')
     .select('role')
     .eq('group_id', groupId)
@@ -39,8 +39,6 @@ export default async function handler(req, res) {
   if (!membership || !['superadmin', 'admin'].includes(membership.role)) {
     return res.status(403).json({ error: 'Must be group admin to import members' });
   }
-
-  const adminSupabase = getAdminSupabaseClient();
   const results = { added: [], alreadyMember: [], notFound: [] };
 
   const validEmails = emails
