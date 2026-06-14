@@ -2118,9 +2118,10 @@ export default function App(){
     const{data:{session}}=await supabase.auth.getSession();
     if(!session?.access_token)return;
     const registeredUsers=game.registrations.map(id=>getUser(db.users,id)).filter(Boolean);
+    const failedEmails=[];
     for(const recipient of registeredUsers){
       try{
-        await fetch("/api/email/send",{
+        const r=await fetch("/api/email/send",{
           method:"POST",
           headers:{"Content-Type":"application/json",Authorization:`Bearer ${session.access_token}`},
           body:JSON.stringify({
@@ -2141,9 +2142,18 @@ export default function App(){
             actions:[],
           }),
         });
+        if(!r.ok){
+          const payload=await r.json().catch(()=>({}));
+          console.error("Cancel notification failed for",recipient.email,payload);
+          failedEmails.push(recipient.email);
+        }
       }catch(err){
         console.error("Cancel notification failed for",recipient.email,err);
+        failedEmails.push(recipient.email);
       }
+    }
+    if(failedEmails.length>0){
+      window.alert(`Game cancelled, but failed to notify ${failedEmails.length} player${failedEmails.length!==1?"s":""}:\n${failedEmails.join("\n")}`);
     }
     await handleDeleteGame(game.id);
   };
