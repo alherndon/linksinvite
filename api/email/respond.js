@@ -7,45 +7,15 @@ function hashToken(token) {
   return createHash('sha256').update(token).digest('hex');
 }
 
-const ACTION_LABELS = { yes: "Yes, I'm in", no: "I can't make it", waitlist: 'Add me to the waitlist' };
-
 const PAGE_STYLE = `
   body{margin:0;min-height:100vh;display:grid;place-items:center;font-family:Arial,sans-serif;background:#f7faf8;color:#17231c}
   main{width:min(520px,calc(100vw - 32px));border:1px solid #d9e5dc;border-radius:8px;background:#fff;padding:28px;box-shadow:0 12px 36px rgba(23,35,28,.08)}
   h1{margin:0 0 10px;font-size:24px}
   p{margin:0;line-height:1.5;color:#4a5d52}
-  .btn{display:inline-block;margin-top:20px;padding:12px 28px;background:#1e6b2f;color:#fff;border:none;border-radius:8px;font-size:16px;font-family:inherit;cursor:pointer;text-decoration:none}
-  .btn:hover{background:#155a24}
 `;
 
-function htmlPage({ title, body }) {
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>${title}</title><style>${PAGE_STYLE}</style></head><body><main>${body}</main></body></html>`;
-}
-
-function confirmPage(token, action) {
-  const label = ACTION_LABELS[action] || action;
-  return htmlPage({
-    title: 'Confirm your response',
-    body: `<h1>Confirm your response</h1>
-      <p>You're about to record: <strong>${label}</strong>.</p>
-      <form method="POST" action="/api/email/respond">
-        <input type="hidden" name="token" value="${token}">
-        <input type="hidden" name="action" value="${action}">
-        <button class="btn" type="submit">${label}</button>
-      </form>`,
-  });
-}
-
 function resultPage({ title, message }) {
-  return htmlPage({ title, body: `<h1>${title}</h1><p>${message}</p>` });
-}
-
-function sendResult(req, res, status, payload) {
-  if (req.method === 'GET') {
-    res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    return res.status(status).send(resultPage({ title: payload.title, message: payload.message }));
-  }
-  return res.status(status).json(payload);
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>${title}</title><style>${PAGE_STYLE}</style></head><body><main><h1>${title}</h1><p>${message}</p></main></body></html>`;
 }
 
 async function findNotification(supabase, token) {
@@ -178,44 +148,41 @@ export default async function handler(req, res) {
   ).toLowerCase();
 
   if (!token || typeof token !== 'string') {
-    return sendResult(req, res, 400, {
-      title: 'Missing Link',
-      message: 'This response link is missing its token.',
-      error: 'Missing response token',
-    });
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    return res.status(400).send(resultPage({ title: 'Missing Link', message: 'This response link is missing its token.' }));
   }
 
   if (!ACTIONS.has(action)) {
-    return sendResult(req, res, 400, {
-      title: 'Invalid Response',
-      message: 'This response link does not include a valid action.',
-      error: 'Invalid response action',
-    });
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    return res.status(400).send(resultPage({ title: 'Invalid Response', message: 'This response link does not include a valid action.' }));
   }
 
-  // GET: verify the link is valid, then show a confirmation page.
-  // This prevents email prefetchers from silently consuming the token.
+  // GET: record the response immediately and show a result page.
   if (req.method === 'GET') {
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
     try {
       const supabase = getAdminSupabaseClient();
       const { data: notification, error: findError } = await findNotification(supabase, token);
       if (findError) throw new Error('Unable to load notification');
 
       if (!notification) {
-        res.setHeader('Content-Type', 'text/html; charset=utf-8');
         return res.status(404).send(resultPage({ title: 'Invalid Link', message: 'This response link is not valid.' }));
       }
 
       if (notification.responded_at) {
-        res.setHeader('Content-Type', 'text/html; charset=utf-8');
-        return res.status(200).send(resultPage({ title: 'Already Recorded', message: 'This response link was already used.' }));
+        return res.status(200).send(resultPage({ title: 'Already Recorded', message: 'Your response was already recorded.' }));
       }
 
-      res.setHeader('Content-Type', 'text/html; charset=utf-8');
-      return res.status(200).send(confirmPage(token, action));
+      const result = await applyGameAction(supabase, notification, action);
+      await supabase
+        .from('notification_events')
+        .update({ response_status: action, responded_at: new Date().toISOString() })
+        .eq('id', notification.id)
+        .is('responded_at', null);
+
+      return res.status(200).send(resultPage({ title: 'Got it!', message: result.message }));
     } catch (error) {
-      res.setHeader('Content-Type', 'text/html; charset=utf-8');
-      return res.status(500).send(resultPage({ title: 'Something Went Wrong', message: error.message || 'Unable to load this link.' }));
+      return res.status(500).send(resultPage({ title: 'Something Went Wrong', message: error.message || 'Unable to record your response.' }));
     }
   }
 
@@ -227,19 +194,11 @@ export default async function handler(req, res) {
     if (findError) throw new Error('Unable to load notification');
 
     if (!notification) {
-      return sendResult(req, res, 404, {
-        title: 'Invalid Link',
-        message: 'This response link is not valid.',
-        error: 'Invalid response link',
-      });
+      return res.status(404).json({ error: 'Invalid response link' });
     }
 
     if (notification.responded_at) {
-      return sendResult(req, res, 409, {
-        title: 'Already Recorded',
-        message: 'This response link was already used.',
-        error: 'This notification was already answered',
-      });
+      return res.status(409).json({ error: 'This notification was already answered' });
     }
 
     const result = await applyGameAction(supabase, notification, action);
@@ -254,16 +213,9 @@ export default async function handler(req, res) {
 
     if (updateError) throw new Error('Unable to record response');
 
-    return sendResult(req, res, 200, {
-      title: 'Response Recorded',
-      message: result.message,
-      data: updatedNotification,
-      result,
-    });
+    return res.status(200).json({ message: result.message, data: updatedNotification, result });
   } catch (error) {
-    return sendResult(req, res, error.statusCode || 500, {
-      title: 'Something Went Wrong',
-      message: error.message || 'Unable to record your response.',
+    return res.status(error.statusCode || 500).json({
       error: error.message || 'Unable to record response',
     });
   }

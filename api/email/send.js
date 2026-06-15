@@ -39,6 +39,18 @@ function escapeHtml(value) {
     .replace(/"/g, '&quot;');
 }
 
+const ACTION_LABELS = {
+  yes: "Yes, I'm in",
+  no: "I'm out",
+  waitlist: 'Waitlist me',
+};
+
+const ACTION_STYLES = {
+  yes: 'background:#1e6b2f;color:#ffffff',
+  no: 'background:#6b7280;color:#ffffff',
+  waitlist: 'background:#f3f4f6;color:#374151;border:1px solid #d1d5db',
+};
+
 function buildResponseLinks(baseUrl, token, actions = DEFAULT_ACTIONS) {
   return actions.map((action) => {
     const url = new URL('/api/email/respond', baseUrl);
@@ -53,23 +65,22 @@ function buildResponseLinks(baseUrl, token, actions = DEFAULT_ACTIONS) {
 }
 
 function buildHtmlEmail({ body, responseLinks }) {
-  const linkMarkup = responseLinks.length > 0
-    ? responseLinks
-        .map(
-          ({ action, url }) => `
-        <p>
-          <strong>${escapeHtml(action.toUpperCase())}</strong><br />
-          <a href="${escapeHtml(url)}">${escapeHtml(url)}</a>
-        </p>
-      `
-        )
+  const buttonMarkup = responseLinks.length > 0
+    ? `<p style="margin:20px 0 0;">` +
+      responseLinks
+        .map(({ action, url }) => {
+          const label = ACTION_LABELS[action] || action.toUpperCase();
+          const style = ACTION_STYLES[action] || 'background:#1e6b2f;color:#ffffff';
+          return `<a href="${escapeHtml(url)}" style="display:inline-block;margin:0 8px 8px 0;padding:12px 24px;border-radius:8px;font-family:Arial,sans-serif;font-size:15px;font-weight:600;text-decoration:none;${style}">${escapeHtml(label)}</a>`;
+        })
         .join('')
+      + `</p>`
     : '';
 
   return `
     <div style="font-family:Arial,sans-serif;line-height:1.5;color:#111827">
       <p>${escapeHtml(body).replace(/\n/g, '<br />')}</p>
-      ${linkMarkup}
+      ${buttonMarkup}
     </div>
   `;
 }
@@ -230,7 +241,7 @@ export default async function handler(req, res) {
     const text = [
       body,
       '',
-      ...responseLinks.map(({ action, url }) => `${action.toUpperCase()}: ${url}`),
+      ...responseLinks.map(({ action, url }) => `${ACTION_LABELS[action] || action.toUpperCase()}: ${url}`),
     ].join('\n');
 
     const { data: event, error: insertError } = await adminSupabase
