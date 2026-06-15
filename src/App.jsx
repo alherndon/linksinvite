@@ -1555,43 +1555,53 @@ const MembersTab=({group,users,currentUserId,onUpdate,superAdmin,accessToken})=>
     if(!accessToken){setInviteResult({type:"error",msg:"Your session has expired. Please sign in again."});return;}
     setInviting(true);setInviteResult(null);
     try{
-      const res=await fetch("/api/groups/invite-bulk",{
-        method:"POST",
-        headers:{"Content-Type":"application/json",Authorization:`Bearer ${accessToken}`},
-        body:JSON.stringify({groupId:group.id,emails:[email]}),
+      // Check if already a member
+      const alreadyMember=group.memberships.some(m=>{
+        const u=users.find(u=>u.id===m.userId);
+        return u?.email?.toLowerCase()===email.toLowerCase();
       });
-      const payload=await res.json().catch(()=>({}));
-      if(!res.ok)throw new Error(payload.error||"Invite failed");
-      const added=payload.added||[];
-      const already=payload.alreadyMember||[];
-      const notFound=payload.notFound||[];
-      if(already.length>0){
+      if(alreadyMember){
         setInviteResult({type:"warning",msg:`${email} is already in this group.`});
         setInviteEmail("");return;
       }
-      if(notFound.length>0){
-        setInviteResult({type:"warning",msg:`No LinksInvite account found for ${email}. Ask them to sign up at this site first.`});
-        return;
-      }
-      if(added.length>0){
-        const u=added[0];
-        // Send a welcome notification (fire-and-forget; failures don't block success)
-        fetch("/api/email/send",{
-          method:"POST",
-          headers:{"Content-Type":"application/json",Authorization:`Bearer ${accessToken}`},
-          body:JSON.stringify({
-            groupId:group.id,
-            recipientUserId:u.userId,
-            toEmail:u.email,
-            eventType:"group_invite",
-            subject:`You've been added to ${group.name} on LinksInvite`,
-            body:`Hi ${u.firstName},\n\nYou've been added to the ${group.name} golf group on LinksInvite. Sign in to see upcoming games and respond to invites.`,
-            actions:[],
-          }),
-        }).catch(()=>{});
-        setInviteResult({type:"success",msg:`${u.firstName} ${u.lastName} added to the group!`});
-        setInviteEmail("");
-      }
+
+      // Look up user by email — does NOT add to group
+      const lookupRes=await fetch(`/api/users/lookup?email=${encodeURIComponent(email)}`,{
+        headers:{Authorization:`Bearer ${accessToken}`},
+      });
+      const lookup=await lookupRes.json().catch(()=>({}));
+      if(!lookupRes.ok)throw new Error(lookup.error||"Lookup failed");
+
+      const recipientUserId=lookup.found?lookup.userId:null;
+      const firstName=lookup.found?lookup.firstName:null;
+
+      // Send invite email with accept/decline buttons.
+      // respond.js handles group_invite: "yes" → join group_memberships, "no" → decline.
+      const emailRes=await fetch("/api/email/send",{
+        method:"POST",
+        headers:{"Content-Type":"application/json",Authorization:`Bearer ${accessToken}`},
+        body:JSON.stringify({
+          groupId:group.id,
+          gameId:null,
+          recipientUserId,
+          toEmail:email,
+          eventType:"group_invite",
+          subject:`You're invited to join ${group.name} on LinksInvite`,
+          body:[
+            firstName?`Hi ${firstName},`:"Hi there,",
+            "",
+            `You've been invited to join the ${group.name} golf group on LinksInvite.`,
+            "",
+            "Use the buttons below to accept or decline.",
+          ].join("\n"),
+          actions:["yes","no"],
+        }),
+      });
+      const emailPayload=await emailRes.json().catch(()=>({}));
+      if(!emailRes.ok)throw new Error(emailPayload.error||emailPayload.details||"Failed to send invite email");
+
+      setInviteResult({type:"success",msg:`Invite sent to ${email}!`});
+      setInviteEmail("");
     }catch(err){
       setInviteResult({type:"error",msg:err.message||"Failed to send invite."});
     }finally{
@@ -1609,7 +1619,7 @@ const MembersTab=({group,users,currentUserId,onUpdate,superAdmin,accessToken})=>
             <Btn small onClick={handleSendInvite} disabled={inviting||!inviteEmail.trim().includes("@")}>{inviting?"Sending...":"Send Invite"}</Btn>
           </div>
           {inviteResult&&<p style={{margin:"4px 0 0",fontSize:12,color:inviteResult.type==="success"?S.accent:inviteResult.type==="warning"?S.warning:S.danger}}>{inviteResult.msg}</p>}
-          {!inviteResult&&<p style={{margin:0,fontSize:11,color:S.textDim}}>They must already have a LinksInvite account. They'll receive a welcome email.</p>}
+          {!inviteResult&&<p style={{margin:0,fontSize:11,color:S.textDim}}>They'll receive an email with Accept / Decline buttons. Accepting adds them to this group.</p>}
         </Card>
       )}
       {group.memberships.map(m=>{

@@ -70,6 +70,42 @@ async function getRegistrationCounts(supabase, gameId) {
   };
 }
 
+async function applyGroupInviteAction(supabase, notification, action) {
+  if (action === 'no') {
+    if (notification.user_id) {
+      await supabase
+        .from('group_memberships')
+        .delete()
+        .eq('group_id', notification.group_id)
+        .eq('user_id', notification.user_id);
+    }
+    return { applied: true, message: 'You have declined the group invitation.' };
+  }
+
+  if (action === 'yes') {
+    if (!notification.user_id) {
+      const appUrl = (process.env.PUBLIC_APP_URL || '').replace(/\/$/, '');
+      const link = appUrl
+        ? `<a href="${appUrl}" style="color:#1e6b2f;font-weight:600">create a LinksInvite account</a>`
+        : 'create a LinksInvite account';
+      return {
+        applied: false,
+        message: `To join this group, please ${link} first. Once you have an account, ask the admin to re-send your invite.`,
+      };
+    }
+    const { error } = await supabase
+      .from('group_memberships')
+      .upsert({ group_id: notification.group_id, user_id: notification.user_id, role: 'player' });
+    if (error) throw new Error('Unable to add you to the group');
+    return {
+      applied: true,
+      message: "You're in the group! Sign in to LinksInvite to see upcoming games.",
+    };
+  }
+
+  return { applied: false, message: 'Your response was recorded.' };
+}
+
 async function applyGameAction(supabase, notification, action) {
   if (!notification.game_id || !notification.user_id) {
     return {
@@ -173,7 +209,9 @@ export default async function handler(req, res) {
         return res.status(200).send(resultPage({ title: 'Already Recorded', message: 'Your response was already recorded.' }));
       }
 
-      const result = await applyGameAction(supabase, notification, action);
+      const result = notification.event_type === 'group_invite'
+        ? await applyGroupInviteAction(supabase, notification, action)
+        : await applyGameAction(supabase, notification, action);
       await supabase
         .from('notification_events')
         .update({ response_status: action, responded_at: new Date().toISOString() })
@@ -201,7 +239,9 @@ export default async function handler(req, res) {
       return res.status(409).json({ error: 'This notification was already answered' });
     }
 
-    const result = await applyGameAction(supabase, notification, action);
+    const result = notification.event_type === 'group_invite'
+      ? await applyGroupInviteAction(supabase, notification, action)
+      : await applyGameAction(supabase, notification, action);
     const respondedAt = new Date().toISOString();
     const { data: updatedNotification, error: updateError } = await supabase
       .from('notification_events')
