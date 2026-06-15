@@ -39,6 +39,18 @@ function escapeHtml(value) {
     .replace(/"/g, '&quot;');
 }
 
+const ACTION_LABELS = {
+  yes: "Yes, I'm in",
+  no: "I'm out",
+  waitlist: 'Waitlist me',
+};
+
+const ACTION_STYLES = {
+  yes: 'background:#1e6b2f;color:#ffffff',
+  no: 'background:#6b7280;color:#ffffff',
+  waitlist: 'background:#f3f4f6;color:#374151;border:1px solid #d1d5db',
+};
+
 function buildResponseLinks(baseUrl, token, actions = DEFAULT_ACTIONS) {
   return actions.map((action) => {
     const url = new URL('/api/email/respond', baseUrl);
@@ -52,24 +64,44 @@ function buildResponseLinks(baseUrl, token, actions = DEFAULT_ACTIONS) {
   });
 }
 
-function buildHtmlEmail({ body, responseLinks }) {
-  const linkMarkup = responseLinks.length > 0
-    ? responseLinks
-        .map(
-          ({ action, url }) => `
-        <p>
-          <strong>${escapeHtml(action.toUpperCase())}</strong><br />
-          <a href="${escapeHtml(url)}">${escapeHtml(url)}</a>
-        </p>
-      `
-        )
+function buildForecastHtml(weather) {
+  if (!weather?.days?.length) return '';
+  const rows = weather.days
+    .map(
+      (d) => `<tr>
+        <td style="padding:6px 10px;border-top:1px solid #eef1ee;">${escapeHtml(d.dayName)}</td>
+        <td style="padding:6px 10px;border-top:1px solid #eef1ee;">${escapeHtml(d.condition)}</td>
+        <td style="padding:6px 10px;border-top:1px solid #eef1ee;">${escapeHtml(d.temp)}</td>
+        <td style="padding:6px 10px;border-top:1px solid #eef1ee;">${escapeHtml(d.rainChance)} rain</td>
+      </tr>`
+    )
+    .join('');
+  return `
+    <p style="margin:20px 0 6px;font-size:13px;font-weight:600;color:#1a2e1a;">7-day forecast${weather.courseName ? ` — ${escapeHtml(weather.courseName)}` : ''}</p>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;border-collapse:collapse;color:#111827;">${rows}</table>
+    ${weather.overallAdvice ? `<p style="margin:8px 0 0;font-size:13px;color:#4a5a4a;">${escapeHtml(weather.overallAdvice)}</p>` : ''}
+  `;
+}
+
+function buildHtmlEmail({ body, responseLinks, weather }) {
+  const forecastMarkup = buildForecastHtml(weather);
+  const buttonMarkup = responseLinks.length > 0
+    ? `<p style="margin:20px 0 0;">` +
+      responseLinks
+        .map(({ action, url }) => {
+          const label = ACTION_LABELS[action] || action.toUpperCase();
+          const style = ACTION_STYLES[action] || 'background:#1e6b2f;color:#ffffff';
+          return `<a href="${escapeHtml(url)}" style="display:inline-block;margin:0 8px 8px 0;padding:12px 24px;border-radius:8px;font-family:Arial,sans-serif;font-size:15px;font-weight:600;text-decoration:none;${style}">${escapeHtml(label)}</a>`;
+        })
         .join('')
+      + `</p>`
     : '';
 
   return `
     <div style="font-family:Arial,sans-serif;line-height:1.5;color:#111827">
       <p>${escapeHtml(body).replace(/\n/g, '<br />')}</p>
-      ${linkMarkup}
+      ${forecastMarkup}
+      ${buttonMarkup}
     </div>
   `;
 }
@@ -225,12 +257,41 @@ export default async function handler(req, res) {
     const responseTokenHash = hashToken(rawToken);
     const fromEmail = requireEnv('EMAIL_FROM');
     const baseUrl = getPublicAppUrl(req);
+
+    let weather = null;
+    if (gameId) {
+      try {
+        const { data: game } = await adminSupabase
+          .from('games')
+          .select('locations(name)')
+          .eq('id', gameId)
+          .maybeSingle();
+        const locationName = game?.locations?.name;
+        if (locationName) {
+          const wr = await fetch(
+            `${baseUrl}/api/weather?location=${encodeURIComponent(locationName)}&days=7`
+          );
+          if (wr.ok) weather = await wr.json();
+        }
+      } catch {
+        // weather failure never blocks the invite
+      }
+    }
+
     const responseLinks = buildResponseLinks(baseUrl, rawToken, actions);
-    const html = buildHtmlEmail({ body, responseLinks });
+    const html = buildHtmlEmail({ body, responseLinks, weather });
     const text = [
       body,
       '',
-      ...responseLinks.map(({ action, url }) => `${action.toUpperCase()}: ${url}`),
+      ...(weather?.days?.length
+        ? [
+            `7-day forecast — ${weather.courseName || ''}`,
+            ...weather.days.map((d) => `${d.dayName}: ${d.condition}, ${d.temp}, ${d.rainChance} rain`),
+            weather.overallAdvice || '',
+            '',
+          ]
+        : []),
+      ...responseLinks.map(({ action, url }) => `${ACTION_LABELS[action] || action.toUpperCase()}: ${url}`),
     ].join('\n');
 
     const { data: event, error: insertError } = await adminSupabase
