@@ -1555,51 +1555,28 @@ const MembersTab=({group,users,currentUserId,onUpdate,superAdmin,accessToken})=>
     if(!accessToken){setInviteResult({type:"error",msg:"Your session has expired. Please sign in again."});return;}
     setInviting(true);setInviteResult(null);
     try{
-      // Check if already a member
-      const alreadyMember=group.memberships.some(m=>{
-        const u=users.find(u=>u.id===m.userId);
-        return u?.email?.toLowerCase()===email.toLowerCase();
-      });
-      if(alreadyMember){
-        setInviteResult({type:"warning",msg:`${email} is already in this group.`});
-        setInviteEmail("");return;
-      }
-
-      // Look up user by email — does NOT add to group
-      const lookupRes=await fetch(`/api/users/lookup?email=${encodeURIComponent(email)}`,{
-        headers:{Authorization:`Bearer ${accessToken}`},
-      });
-      const lookup=await lookupRes.json().catch(()=>({}));
-      if(!lookupRes.ok)throw new Error(lookup.error||"Lookup failed");
-
-      const recipientUserId=lookup.found?lookup.userId:null;
-      const firstName=lookup.found?lookup.firstName:null;
-
-      // Send invite email with accept/decline buttons.
-      // respond.js handles group_invite: "yes" → join group_memberships, "no" → decline.
-      const emailRes=await fetch("/api/email/send",{
+      const res=await fetch("/api/email/send",{
         method:"POST",
         headers:{"Content-Type":"application/json",Authorization:`Bearer ${accessToken}`},
         body:JSON.stringify({
           groupId:group.id,
           gameId:null,
-          recipientUserId,
+          recipientUserId:null,
           toEmail:email,
           eventType:"group_invite",
-          subject:`You're invited to join ${group.name} on LinksInvite`,
+          subject:`You're invited to join ${group.name}`,
           body:[
-            firstName?`Hi ${firstName},`:"Hi there,",
+            "Hi there,",
             "",
-            `You've been invited to join the ${group.name} golf group on LinksInvite.`,
+            `You've been invited to join the ${group.name} golf group.`,
             "",
-            "Use the buttons below to accept or decline.",
+            "Use the buttons below to accept or decline — no account needed.",
           ].join("\n"),
           actions:["yes","no"],
         }),
       });
-      const emailPayload=await emailRes.json().catch(()=>({}));
-      if(!emailRes.ok)throw new Error(emailPayload.error||emailPayload.details||"Failed to send invite email");
-
+      const payload=await res.json().catch(()=>({}));
+      if(!res.ok)throw new Error(payload.error||payload.details||"Failed to send invite");
       setInviteResult({type:"success",msg:`Invite sent to ${email}!`});
       setInviteEmail("");
     }catch(err){
@@ -1708,7 +1685,7 @@ const AdminPage=({group,user,users,games,onUpdateGroup,onSaveGame,onDeleteGame,o
                     </div>
                   </div>
                   <GameInvitePanel game={g} group={group} users={users} onSendInvite={onSendGameInvite}/>
-                  <BulkInvitePanel game={g} group={group} onSendInvite={onSendGameInvite} accessToken={accessToken}/>
+                  <BulkInvitePanel game={g} group={group} users={users} onSendInvite={onSendGameInvite} accessToken={accessToken}/>
                   {g.registrations.length>0&&(
                     <div style={{marginTop:12,paddingTop:12,borderTop:`1px solid ${S.cardBorder}33`}}>
                       <div style={{fontSize:11,color:S.textMuted,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:8}}>Roster</div>
@@ -1814,85 +1791,74 @@ const GameInvitePanel=({game,group,users,onSendInvite})=>{
 };
 
 // ── BULK INVITE ────────────────────────────────────────────────────────────────
-const BulkInvitePanel=({game,group,onSendInvite,accessToken})=>{
+const BulkInvitePanel=({game,group,users,onSendInvite,accessToken})=>{
   const [open,setOpen]=useState(false);
   const [emailText,setEmailText]=useState("");
-  const [loading,setLoading]=useState(false);
-  const [results,setResults]=useState(null);
-  const [importError,setImportError]=useState("");
-  const [inviting,setInviting]=useState(false);
-  const [inviteStatus,setInviteStatus]=useState("");
+  const [sending,setSending]=useState(false);
+  const [status,setStatus]=useState("");
+  const [error,setError]=useState("");
 
-  const handleImport=async()=>{
-    const emails=emailText.split(/[\n,;]+/).map(e=>e.trim()).filter(e=>e.includes("@")&&e.includes("."));
-    if(emails.length===0){setImportError("No valid email addresses found.");return;}
-    if(!accessToken){setImportError("Your session has expired. Please sign in again.");return;}
-    setLoading(true);setImportError("");setResults(null);setInviteStatus("");
-    try{
-      const res=await fetch("/api/groups/invite-bulk",{
-        method:"POST",
-        headers:{"Content-Type":"application/json",Authorization:`Bearer ${accessToken}`},
-        body:JSON.stringify({groupId:group.id,emails}),
-      });
-      const payload=await res.json();
-      if(!res.ok)throw new Error(payload.error||"Import failed");
-      setResults(payload);
-    }catch(err){
-      setImportError(err.message);
-    }finally{
-      setLoading(false);
-    }
+  const memberEmails=group.memberships
+    .map(m=>users.find(u=>u.id===m.userId)?.email)
+    .filter(Boolean)
+    .join("\n");
+
+  const handleOpen=()=>{
+    setEmailText(memberEmails);
+    setStatus("");setError("");
+    setOpen(true);
   };
 
-  const handleInviteAll=async()=>{
-    if(!results)return;
-    const toInvite=[...(results.added||[]),...(results.alreadyMember||[])];
-    if(toInvite.length===0)return;
-    setInviting(true);setInviteStatus("");
+  const handleSend=async()=>{
+    const emails=emailText.split(/[\n,;]+/).map(e=>e.trim()).filter(e=>e.includes("@")&&e.includes("."));
+    if(emails.length===0){setError("No valid email addresses found.");return;}
+    if(!accessToken){setError("Session expired. Please sign in again.");return;}
+    setSending(true);setStatus("");setError("");
     const loc=getLoc(group,game.locationId);
     const defaultBody=[
       `Can you play with ${group.name} on ${game.day}, ${game.date} at ${game.time}?`,
       loc?.name?`Course: ${loc.name}`:null,
     ].filter(Boolean).join("\n");
     let sent=0;
-    for(const u of toInvite){
+    for(const email of emails){
+      const known=users.find(u=>u.email?.toLowerCase()===email.toLowerCase());
       try{
-        await onSendInvite(game,{id:u.userId,email:u.email,firstName:u.firstName,lastName:u.lastName},defaultBody);
+        await onSendInvite(
+          game,
+          {id:known?.id||null,email,firstName:known?.firstName||"",lastName:known?.lastName||""},
+          defaultBody
+        );
         sent++;
-      }catch{}
+      }catch(err){
+        console.error("Invite failed for",email,err.message);
+      }
     }
-    setInviting(false);
-    setInviteStatus(`${sent} invite${sent!==1?"s":""} sent.`);
+    setSending(false);
+    setStatus(sent===emails.length
+      ?`${sent} invite${sent!==1?"s":""} sent.`
+      :`${sent} of ${emails.length} sent — ${emails.length-sent} failed.`
+    );
   };
 
   if(!open)return(
-    <button onClick={()=>setOpen(true)} style={{background:"none",border:"none",color:S.accent,fontSize:12,fontWeight:600,cursor:"pointer",padding:"8px 0 2px",fontFamily:"inherit",display:"block",letterSpacing:"0.03em"}}>
-      ▼ Bulk import golfers by email
+    <button onClick={handleOpen} style={{background:"none",border:"none",color:S.accent,fontSize:12,fontWeight:600,cursor:"pointer",padding:"8px 0 2px",fontFamily:"inherit",display:"block",letterSpacing:"0.03em"}}>
+      ▼ Send bulk game invites
     </button>
   );
 
   return(
     <div style={{marginTop:8,paddingTop:12,borderTop:`1px solid ${S.cardBorder}33`}}>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
-        <div style={{fontSize:11,fontWeight:700,color:S.textMuted,letterSpacing:"0.08em",textTransform:"uppercase"}}>Bulk Import Golfers</div>
-        <button onClick={()=>{setOpen(false);setResults(null);setEmailText("");setImportError("");setInviteStatus("");}} style={{background:"none",border:"none",color:S.textMuted,fontSize:13,cursor:"pointer",fontFamily:"inherit",padding:0}}>✕</button>
+        <div style={{fontSize:11,fontWeight:700,color:S.textMuted,letterSpacing:"0.08em",textTransform:"uppercase"}}>Bulk Game Invites</div>
+        <button onClick={()=>{setOpen(false);setEmailText("");setStatus("");setError("");}} style={{background:"none",border:"none",color:S.textMuted,fontSize:13,cursor:"pointer",fontFamily:"inherit",padding:0}}>✕</button>
       </div>
-      <TA label="Email Addresses" value={emailText} onChange={setEmailText} rows={4} placeholder={"Paste emails — one per line or comma-separated\nplayer1@example.com\nplayer2@example.com"}/>
-      {importError&&<div style={{fontSize:12,color:S.danger,marginBottom:8}}>{importError}</div>}
-      <Btn small onClick={handleImport} disabled={loading||!emailText.trim()}>{loading?"Looking up...":"Add to Group"}</Btn>
-      {results&&(
-        <div style={{marginTop:12,fontSize:13,lineHeight:1.7}}>
-          {results.added?.length>0&&<div style={{color:S.accent}}>✓ Added ({results.added.length}): {results.added.map(u=>`${u.firstName} ${u.lastName}`).join(", ")}</div>}
-          {results.alreadyMember?.length>0&&<div style={{color:S.textMuted}}>Already members ({results.alreadyMember.length}): {results.alreadyMember.map(u=>`${u.firstName} ${u.lastName}`).join(", ")}</div>}
-          {results.notFound?.length>0&&<div style={{color:S.warning}}>No account found ({results.notFound.length}): {results.notFound.join(", ")}</div>}
-          {((results.added?.length||0)+(results.alreadyMember?.length||0))>0&&(
-            <div style={{marginTop:10,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
-              <Btn small onClick={handleInviteAll} disabled={inviting}>{inviting?"Sending...":"Send Game Invites to All"}</Btn>
-              {inviteStatus&&<span style={{fontSize:12,color:S.accent}}>{inviteStatus}</span>}
-            </div>
-          )}
-        </div>
-      )}
+      <TA label="Email Addresses" value={emailText} onChange={setEmailText} rows={4} placeholder={"One per line or comma-separated\nplayer1@example.com\nplayer2@example.com"}/>
+      <p style={{margin:"0 0 8px",fontSize:11,color:S.textDim}}>Pre-filled with group members. Add any email — no account needed to receive or respond.</p>
+      {error&&<div style={{fontSize:12,color:S.danger,marginBottom:8}}>{error}</div>}
+      <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+        <Btn small onClick={handleSend} disabled={sending||!emailText.trim()}>{sending?"Sending...":"Send Game Invites"}</Btn>
+        {status&&<span style={{fontSize:12,color:S.accent}}>{status}</span>}
+      </div>
     </div>
   );
 };
@@ -2335,12 +2301,13 @@ export default function App(){
       location?.name?`Course: ${location.name}`:null,
       game.description?`Details: ${game.description}`:null,
     ].filter(Boolean).join("\n");
+    const greeting=recipient.firstName?`Hi ${recipient.firstName},`:"Hi there,";
     const body=[
-      `Hi ${recipient.firstName},`,
+      greeting,
       "",
       bodyContent,
       "",
-      "Use the buttons below to respond. Changed your mind? Sign in and tap \"I'm Out\" anytime.",
+      "Use the buttons below to respond.",
     ].join("\n");
 
     const res=await fetch("/api/email/send",{
@@ -2352,7 +2319,7 @@ export default function App(){
       body:JSON.stringify({
         groupId:group.id,
         gameId:game.id,
-        recipientUserId:recipient.id,
+        recipientUserId:recipient.id||null,
         toEmail:recipient.email,
         eventType:"game_invite",
         subject,

@@ -79,40 +79,38 @@ async function applyGroupInviteAction(supabase, notification, action) {
         .eq('group_id', notification.group_id)
         .eq('user_id', notification.user_id);
     }
-    return { applied: true, message: 'You have declined the group invitation.' };
+    return { applied: true, message: 'You have declined the group invitation. No action needed on your end.' };
   }
 
   if (action === 'yes') {
-    if (!notification.user_id) {
-      const appUrl = (process.env.PUBLIC_APP_URL || '').replace(/\/$/, '');
-      const link = appUrl
-        ? `<a href="${appUrl}" style="color:#1e6b2f;font-weight:600">create a LinksInvite account</a>`
-        : 'create a LinksInvite account';
-      return {
-        applied: false,
-        message: `To join this group, please ${link} first. Once you have an account, ask the admin to re-send your invite.`,
-      };
+    if (notification.user_id) {
+      const { error } = await supabase
+        .from('group_memberships')
+        .upsert({ group_id: notification.group_id, user_id: notification.user_id, role: 'player' });
+      if (error) throw new Error('Unable to add you to the group');
     }
-    const { error } = await supabase
-      .from('group_memberships')
-      .upsert({ group_id: notification.group_id, user_id: notification.user_id, role: 'player' });
-    if (error) throw new Error('Unable to add you to the group');
     return {
       applied: true,
-      message: "You're in the group! Sign in to LinksInvite to see upcoming games.",
+      message: "You're confirmed! The organizer has your response and will be in touch about upcoming games.",
     };
   }
 
-  return { applied: false, message: 'Your response was recorded.' };
+  return { applied: false, message: 'Your response has been recorded.' };
 }
 
 async function applyGameAction(supabase, notification, action) {
-  if (!notification.game_id || !notification.user_id) {
-    return {
-      applied: false,
-      message:
-        'Your response was recorded. No player registration was changed for this email.',
-    };
+  if (!notification.game_id) {
+    return { applied: false, message: 'Your response has been recorded.' };
+  }
+
+  // No user_id means an email-only invite — record the response without touching game_registrations.
+  if (!notification.user_id) {
+    const msg = action === 'yes'
+      ? "You're in! The organizer has your response."
+      : action === 'no'
+        ? "Got it — we've noted you can't make it."
+        : "You're on the waitlist. We'll let you know if a spot opens up.";
+    return { applied: false, message: msg };
   }
 
   if (action === 'no') {
