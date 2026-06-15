@@ -264,7 +264,7 @@ const RoleBadge=({role})=>{
 };
 const Btn=({children,onClick,variant="primary",small,disabled,full,style:sx})=>{
   const v={primary:{background:S.accent,color:"#0d1a0e",border:"none"},secondary:{background:"transparent",color:S.accent,border:`1px solid ${S.accent}55`},danger:{background:"transparent",color:S.danger,border:`1px solid ${S.danger}55`},gold:{background:S.gold,color:"#1a1200",border:"none"},ghost:{background:S.accentSubtle,color:S.accent,border:`1px solid ${S.accent}33`},info:{background:S.infoBg,color:S.info,border:`1px solid ${S.info}44`}};
-  return <button onClick={onClick} disabled={disabled} style={{...v[variant],padding:small?"6px 14px":"9px 20px",borderRadius:8,fontSize:small?12:14,fontWeight:600,cursor:disabled?"not-allowed":"pointer",opacity:disabled?0.45:1,transition:"all 0.15s",fontFamily:"inherit",whiteSpace:"nowrap",width:full?"100%":"auto",...sx}}>{children}</button>;
+  return <button type="button" onClick={onClick} disabled={disabled} style={{...v[variant],padding:small?"6px 14px":"9px 20px",borderRadius:8,fontSize:small?12:14,fontWeight:600,cursor:disabled?"not-allowed":"pointer",opacity:disabled?0.45:1,transition:"all 0.15s",fontFamily:"inherit",whiteSpace:"nowrap",width:full?"100%":"auto",...sx}}>{children}</button>;
 };
 const Inp=({label,value,onChange,placeholder,type="text",required,hint,error})=>{
   const id=useId();
@@ -1720,7 +1720,7 @@ const GameInvitePanel=({game,group,users,onSendInvite})=>{
       await onSendInvite(game,selectedUser,inviteBody);
       setMessage(`Invite sent to ${selectedUser.email}`);
     }catch(err){
-      setError(err.message);
+      setError(err.message||"Failed to send invite. Please try again.");
     }finally{
       setSending(false);
     }
@@ -1925,7 +1925,9 @@ export default function App(){
     }catch(err){
       console.error("Data load error:",err);
       setLoadError(err.message||"Unable to load your groups.");
-      setDb({users:[],groups:[],games:[]});
+      // Don't wipe db on a transient load error — clearing it would unmount
+      // AdminPage mid-operation (e.g. during a TOKEN_REFRESHED race), causing
+      // in-flight sends to silently disappear and state to reset.
     }
   };
 
