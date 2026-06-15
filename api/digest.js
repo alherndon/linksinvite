@@ -10,7 +10,7 @@ const supabaseAdmin = createClient(
   { auth: { persistSession: false, autoRefreshToken: false } }
 );
 
-const FROM = process.env.EMAIL_FROM || 'LinksInvite <onboarding@resend.dev>';
+const FROM = process.env.EMAIL_FROM;
 const APP_URL = (process.env.PUBLIC_APP_URL || '').replace(/\/$/, '');
 const SECRET = process.env.CRON_SECRET || process.env.ADMIN_API_SECRET;
 
@@ -23,6 +23,8 @@ export default async function handler(req, res) {
   if (!SECRET || provided !== SECRET) {
     return res.status(401).json({ ok: false, error: 'Unauthorized' });
   }
+
+  if (!FROM) return res.status(500).json({ ok: false, error: 'Missing required environment variable: EMAIL_FROM' });
 
   const today = todayET();
   const tomorrow = addDays(today, 1);

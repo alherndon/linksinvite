@@ -1078,7 +1078,7 @@ const SplashPage=({group,user,users,games,onRegister,onSaveGame,startNewGame,onN
 };
 
 // ── TEE TIME EMAIL MODAL ──────────────────────────────────────────────────────
-const TeeTimeModal=({game,location,adminUser,group,onSend,onClose})=>{
+const TeeTimeModal=({game,location,adminUser,group,onSend,onClose,accessToken})=>{
   const contact=location?.teeTimeContact||{};
   const foursomes=Math.ceil(game.maxPlayers/4);
   const genTimes=()=>{
@@ -1111,9 +1111,8 @@ const TeeTimeModal=({game,location,adminUser,group,onSend,onClose})=>{
     setSending(true);setSendError("");
     try{
       const requestedTime=times.trim();
-      const{data:{session}}=await supabase.auth.getSession();
       const headers={"Content-Type":"application/json"};
-      if(session?.access_token)headers["Authorization"]=`Bearer ${session.access_token}`;
+      if(accessToken)headers["Authorization"]=`Bearer ${accessToken}`;
       const res=await fetch("/api/tee_times/request",{
         method:"POST",
         headers,
@@ -1353,7 +1352,7 @@ const LocationsTab=({group,onUpdate,superAdmin})=>{
 };
 
 // ── GAME FORM ─────────────────────────────────────────────────────────────────
-const GameForm=({game,group,adminUser,onSave,onCancel,onSendRequest})=>{
+const GameForm=({game,group,adminUser,onSave,onCancel,onSendRequest,accessToken})=>{
   const isNew=!game;
   const recurrenceDefault={frequency:"weekly",interval:1,weeklyDays:["Saturday"],monthlyOption:"dayOfMonth",monthlyDay:1,monthlyWeek:"first",monthlyWeekday:"Saturday",yearlyMonth:"January",yearlyDay:1,endType:"never",endAfter:10,endDate:""};
   const defaultForm={day:"Saturday",date:"",time:"",locationId:group.locations[0]?.id||"",description:"",rules:DEFAULT_RULES,pairingMethod:"balanced",assignFoursomes:true,maxPlayers:16,recurring:false,recurrence:recurrenceDefault};
@@ -1401,7 +1400,7 @@ const GameForm=({game,group,adminUser,onSave,onCancel,onSendRequest})=>{
       {showModal&&adminUser&&(
         <TeeTimeModal game={game||{...form,id:"preview",maxPlayers:form.maxPlayers}} location={selLoc} adminUser={adminUser} group={group}
           onSend={req=>{onSendRequest&&onSendRequest(game?.id,req);setShowModal(false);}}
-          onClose={()=>setShowModal(false)}/>
+          onClose={()=>setShowModal(false)} accessToken={accessToken}/>
       )}
       <Card style={{marginBottom:20}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:18}}>
@@ -1589,7 +1588,7 @@ const MembersTab=({group,users,currentUserId,onUpdate,superAdmin})=>{
 };
 
 // ── ADMIN PAGE ────────────────────────────────────────────────────────────────
-const AdminPage=({group,user,users,games,onUpdateGroup,onSaveGame,onDeleteGame,onCancelGame,onSendRequest,onSimulateResponse,onSendGameInvite})=>{
+const AdminPage=({group,user,users,games,onUpdateGroup,onSaveGame,onDeleteGame,onCancelGame,onSendRequest,onSimulateResponse,onSendGameInvite,accessToken})=>{
   const [tab,setTab]=useState("games");
   const [showNew,setShowNew]=useState(false);
   const [editingId,setEditingId]=useState(null);
@@ -1620,14 +1619,14 @@ const AdminPage=({group,user,users,games,onUpdateGroup,onSaveGame,onDeleteGame,o
           <div style={{display:"flex",justifyContent:"flex-end",marginBottom:14}}>
             <Btn variant="gold" small onClick={()=>{setShowNew(true);setEditingId(null);}}>+ New Game</Btn>
           </div>
-          {showNew&&<GameForm group={group} adminUser={user} onSave={g=>{onSaveGame(g);setShowNew(false);}} onCancel={()=>setShowNew(false)} onSendRequest={onSendRequest}/>}
+          {showNew&&<GameForm group={group} adminUser={user} onSave={g=>{onSaveGame(g);setShowNew(false);}} onCancel={()=>setShowNew(false)} onSendRequest={onSendRequest} accessToken={accessToken}/>}
           {myGames.length===0&&!showNew&&<Card><p style={{color:S.textMuted,textAlign:"center",margin:0}}>No games yet. Create your first game above.</p></Card>}
           {myGames.map(g=>{
             const location=getLoc(group,g.locationId);
             return (
             <div key={g.id}>
               {editingId===g.id?(
-                <GameForm key={`edit-${g.id}`} game={g} group={group} adminUser={user} onSave={u=>{onSaveGame(u);setEditingId(null);}} onCancel={()=>setEditingId(null)} onSendRequest={onSendRequest}/>
+                <GameForm key={`edit-${g.id}`} game={g} group={group} adminUser={user} onSave={u=>{onSaveGame(u);setEditingId(null);}} onCancel={()=>setEditingId(null)} onSendRequest={onSendRequest} accessToken={accessToken}/>
               ):(
                 <Card style={{marginBottom:16}}>
                   <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
@@ -1645,7 +1644,7 @@ const AdminPage=({group,user,users,games,onUpdateGroup,onSaveGame,onDeleteGame,o
                     </div>
                   </div>
                   <GameInvitePanel game={g} group={group} users={users} onSendInvite={onSendGameInvite}/>
-                  <BulkInvitePanel game={g} group={group} onSendInvite={onSendGameInvite}/>
+                  <BulkInvitePanel game={g} group={group} onSendInvite={onSendGameInvite} accessToken={accessToken}/>
                   {g.registrations.length>0&&(
                     <div style={{marginTop:12,paddingTop:12,borderTop:`1px solid ${S.cardBorder}33`}}>
                       <div style={{fontSize:11,color:S.textMuted,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:8}}>Roster</div>
@@ -1779,7 +1778,7 @@ const GameInvitePanel=({game,group,users,onSendInvite})=>{
 };
 
 // ── BULK INVITE ────────────────────────────────────────────────────────────────
-const BulkInvitePanel=({game,group,onSendInvite})=>{
+const BulkInvitePanel=({game,group,onSendInvite,accessToken})=>{
   const [open,setOpen]=useState(false);
   const [emailText,setEmailText]=useState("");
   const [loading,setLoading]=useState(false);
@@ -1791,12 +1790,12 @@ const BulkInvitePanel=({game,group,onSendInvite})=>{
   const handleImport=async()=>{
     const emails=emailText.split(/[\n,;]+/).map(e=>e.trim()).filter(e=>e.includes("@")&&e.includes("."));
     if(emails.length===0){setImportError("No valid email addresses found.");return;}
+    if(!accessToken){setImportError("Your session has expired. Please sign in again.");return;}
     setLoading(true);setImportError("");setResults(null);setInviteStatus("");
     try{
-      const{data:{session}}=await supabase.auth.getSession();
       const res=await fetch("/api/groups/invite-bulk",{
         method:"POST",
-        headers:{"Content-Type":"application/json",Authorization:`Bearer ${session.access_token}`},
+        headers:{"Content-Type":"application/json",Authorization:`Bearer ${accessToken}`},
         body:JSON.stringify({groupId:group.id,emails}),
       });
       const payload=await res.json();
@@ -1941,15 +1940,16 @@ export default function App(){
   const [newGameGroupId,setNewGameGroupId]=useState(null);
   const [appLoading,setAppLoading]=useState(true);
   const [loadError,setLoadError]=useState("");
+  const [accessToken,setAccessToken]=useState(null);
 
-  const loadData=async(authUserId)=>{
+  const loadData=async(authUserId,token)=>{
     try{
       setLoadError("");
-      const{data:{session}}=await supabase.auth.getSession();
-      if(!session?.access_token)throw new Error("Sign in again to load your groups.");
+      const tok=token??(await supabase.auth.getSession()).data?.session?.access_token;
+      if(!tok)throw new Error("Sign in again to load your groups.");
 
       const res=await fetch("/api/groups/mine",{
-        headers:{Authorization:`Bearer ${session.access_token}`},
+        headers:{Authorization:`Bearer ${tok}`},
       });
       const payload=await res.json().catch(()=>({}));
       if(!res.ok)throw new Error(payload.error||payload.details||"Unable to load your groups.");
@@ -1984,6 +1984,7 @@ export default function App(){
     let completingSignup=false;
     const finishSession=async(session)=>{
       if(session?.user){
+        setAccessToken(session.access_token);
         setAuthUser(session.user);
         try{
           const pendingSignup=getPendingSignup(session.user);
@@ -1994,7 +1995,7 @@ export default function App(){
           }
           if(!active)return;
           setUserId(session.user.id);
-          await loadData(session.user.id);
+          await loadData(session.user.id,session.access_token);
         }catch(err){
           completingSignup=false;
           console.error("Signup completion error:",err);
@@ -2004,6 +2005,7 @@ export default function App(){
           }
         }
       }else{
+        setAccessToken(null);
         setUserId(null);
         setAuthUser(null);
         setLoadError("");
@@ -2128,13 +2130,12 @@ export default function App(){
       })}));
     }
     try{
-      const{data:{session}}=await supabase.auth.getSession();
-      if(!session?.access_token)throw new Error("Sign in again to save this game.");
+      if(!accessToken)throw new Error("Sign in again to save this game.");
       const res=await fetch("/api/games/save",{
         method:"POST",
         headers:{
           "Content-Type":"application/json",
-          Authorization:`Bearer ${session.access_token}`,
+          Authorization:`Bearer ${accessToken}`,
         },
         body:JSON.stringify({
           game:toDbGame(locationToSave?{...game,locationId:locationToSave.id}:game),
@@ -2161,14 +2162,14 @@ export default function App(){
     if(!confirmed)return;
     const grp=db.groups.find(g=>g.id===game.groupId);
     const loc=grp?getLoc(grp,game.locationId):null;
-    const{data:{session}}=await supabase.auth.getSession();
-    if(!session?.access_token)return;
+    if(!accessToken)return;
     const registeredUsers=game.registrations.map(id=>getUser(db.users,id)).filter(Boolean);
+    const failedEmails=[];
     for(const recipient of registeredUsers){
       try{
-        await fetch("/api/email/send",{
+        const r=await fetch("/api/email/send",{
           method:"POST",
-          headers:{"Content-Type":"application/json",Authorization:`Bearer ${session.access_token}`},
+          headers:{"Content-Type":"application/json",Authorization:`Bearer ${accessToken}`},
           body:JSON.stringify({
             groupId:game.groupId,
             gameId:game.id,
@@ -2188,9 +2189,18 @@ export default function App(){
             actions:[],
           }),
         });
+        if(!r.ok){
+          const payload=await r.json().catch(()=>({}));
+          console.error("Cancel notification failed for",recipient.email,payload);
+          failedEmails.push(recipient.email);
+        }
       }catch(err){
         console.error("Cancel notification failed for",recipient.email,err);
+        failedEmails.push(recipient.email);
       }
+    }
+    if(failedEmails.length>0){
+      window.alert(`Game cancelled, but failed to notify ${failedEmails.length} player${failedEmails.length!==1?"s":""}:\n${failedEmails.join("\n")}`);
     }
     await handleDeleteGame(game.id);
   };
@@ -2253,14 +2263,13 @@ export default function App(){
   };
 
   const handleCreateFirstGroup=async({name,description,locationName,locationAddress})=>{
-    const{data:{session}}=await supabase.auth.getSession();
-    if(!session?.access_token)throw new Error("Sign in again to create a group.");
+    if(!accessToken)throw new Error("Sign in again to create a group.");
 
     const res=await fetch("/api/groups/onboard",{
       method:"POST",
       headers:{
         "Content-Type":"application/json",
-        Authorization:`Bearer ${session.access_token}`,
+        Authorization:`Bearer ${accessToken}`,
       },
       body:JSON.stringify({
         action:"create",
@@ -2277,14 +2286,13 @@ export default function App(){
   };
 
   const handleJoinFirstGroup=async(joinCode)=>{
-    const{data:{session}}=await supabase.auth.getSession();
-    if(!session?.access_token)throw new Error("Sign in again to join a group.");
+    if(!accessToken)throw new Error("Sign in again to join a group.");
 
     const res=await fetch("/api/groups/onboard",{
       method:"POST",
       headers:{
         "Content-Type":"application/json",
-        Authorization:`Bearer ${session.access_token}`,
+        Authorization:`Bearer ${accessToken}`,
       },
       body:JSON.stringify({action:"join",joinCode}),
     });
@@ -2299,8 +2307,7 @@ export default function App(){
   };
 
   const handleSendGameInvite=async(game,recipient,customBody)=>{
-    const{data:{session}}=await supabase.auth.getSession();
-    if(!session?.access_token)throw new Error("Sign in again to send email invites.");
+    if(!accessToken)throw new Error("Sign in again to send email invites.");
 
     const location=getLoc(group,game.locationId);
     const subject=`Can you play ${game.day}?`;
@@ -2327,7 +2334,7 @@ export default function App(){
       method:"POST",
       headers:{
         "Content-Type":"application/json",
-        Authorization:`Bearer ${session.access_token}`,
+        Authorization:`Bearer ${accessToken}`,
       },
       body:JSON.stringify({
         groupId:group.id,
@@ -2392,7 +2399,7 @@ export default function App(){
           onOpenAddGame={id=>{setGroupId(id);setNewGameGroupId(id);setPage("splash");}}
         />
       )}
-      {page==="admin"&&group&&user&&canEdit(group,userId)&&<AdminPage group={group} user={user} users={db.users} games={db.games} onUpdateGroup={handleUpdateGroup} onSaveGame={handleSaveGame} onDeleteGame={handleDeleteGame} onCancelGame={handleCancelGame} onSendRequest={handleSendRequest} onSimulateResponse={handleSimulateResponse} onSendGameInvite={handleSendGameInvite}/>}
+      {page==="admin"&&group&&user&&canEdit(group,userId)&&<AdminPage group={group} user={user} users={db.users} games={db.games} onUpdateGroup={handleUpdateGroup} onSaveGame={handleSaveGame} onDeleteGame={handleDeleteGame} onCancelGame={handleCancelGame} onSendRequest={handleSendRequest} onSimulateResponse={handleSimulateResponse} onSendGameInvite={handleSendGameInvite} accessToken={accessToken}/>}
       {page==="profile"&&user&&<ProfilePage user={user} groups={db.groups} games={db.games} onUpdateUser={handleUpdateUser}/>}
     </div>
   );
