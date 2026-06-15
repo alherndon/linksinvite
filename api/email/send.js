@@ -268,10 +268,17 @@ export default async function handler(req, res) {
           .maybeSingle();
         const locationName = game?.locations?.name;
         if (locationName) {
-          const wr = await fetch(
-            `${baseUrl}/api/weather?location=${encodeURIComponent(locationName)}&days=7`
-          );
-          if (wr.ok) weather = await wr.json();
+          const abort = new AbortController();
+          const tid = setTimeout(() => abort.abort(), 4000);
+          try {
+            const wr = await fetch(
+              `${baseUrl}/api/weather?location=${encodeURIComponent(locationName)}&days=7`,
+              { signal: abort.signal }
+            );
+            if (wr.ok) weather = await wr.json();
+          } finally {
+            clearTimeout(tid);
+          }
         }
       } catch {
         // weather failure never blocks the invite
