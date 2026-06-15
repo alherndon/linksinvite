@@ -7,7 +7,7 @@ function hashToken(token) {
   return createHash('sha256').update(token).digest('hex');
 }
 
-const ACTION_LABELS = { yes: "Yes, I'm in", no: "I can't make it", waitlist: 'Add me to the waitlist' };
+const ACTION_LABELS = { yes: "I'm in", no: "I'm out", waitlist: 'Join the waitlist' };
 
 const PAGE_STYLE = `
   body{margin:0;min-height:100vh;display:grid;place-items:center;font-family:Arial,sans-serif;background:#f7faf8;color:#17231c}
@@ -51,7 +51,7 @@ function sendResult(req, res, status, payload) {
 async function findNotification(supabase, token) {
   return supabase
     .from('notification_events')
-    .select('id, group_id, game_id, user_id, event_type, response_token_hash, responded_at, response_status')
+    .select('id, group_id, game_id, user_id, to_email, to_name, event_type, response_token_hash, responded_at, response_status')
     .eq('response_token_hash', hashToken(token))
     .maybeSingle();
 }
@@ -101,7 +101,14 @@ async function getRegistrationCounts(supabase, gameId) {
 }
 
 async function applyGameAction(supabase, notification, action) {
-  if (!notification.game_id || !notification.user_id) {
+  // A response is attributed either to an account (user_id) or, for an
+  // eVite-style email guest with no account, to the email it was sent to.
+  const userId = notification.user_id || null;
+  const email = notification.to_email
+    ? String(notification.to_email).toLowerCase()
+    : null;
+
+  if (!notification.game_id || (!userId && !email)) {
     return {
       applied: false,
       message:
@@ -109,12 +116,17 @@ async function applyGameAction(supabase, notification, action) {
     };
   }
 
+  // Locate this person's roster row by account id or by guest email.
+  const matchRow = (q) => (userId ? q.eq('user_id', userId) : q.eq('email', email));
+
+  // "I'm out" — remove them from the roster (if they were on it).
   if (action === 'no') {
-    const { error } = await supabase
-      .from('game_registrations')
-      .delete()
-      .eq('game_id', notification.game_id)
-      .eq('user_id', notification.user_id);
+    const { error } = await matchRow(
+      supabase
+        .from('game_registrations')
+        .delete()
+        .eq('game_id', notification.game_id)
+    );
 
     if (error) {
       throw new Error('Unable to update registration');
@@ -123,10 +135,11 @@ async function applyGameAction(supabase, notification, action) {
     return {
       applied: true,
       status: 'declined',
-      message: 'You are marked as not playing.',
+      message: "You're marked as out. Thanks for letting us know!",
     };
   }
 
+  // "I'm in" (or a legacy waitlist link) — register, or waitlist if full.
   const game = await getGame(supabase, notification.game_id);
   const { registeredCount, nextWaitlistPosition } = await getRegistrationCounts(
     supabase,
@@ -137,14 +150,19 @@ async function applyGameAction(supabase, notification, action) {
   const status = shouldRegister ? 'registered' : 'waitlisted';
   const position = status === 'waitlisted' ? nextWaitlistPosition : null;
 
-  const { error } = await supabase
-    .from('game_registrations')
-    .upsert({
-      game_id: notification.game_id,
-      user_id: notification.user_id,
-      status,
-      position,
-    });
+  const row = { game_id: notification.game_id, status, position };
+  const query = userId
+    ? supabase
+        .from('game_registrations')
+        .upsert({ ...row, user_id: userId }, { onConflict: 'game_id,user_id' })
+    : supabase
+        .from('game_registrations')
+        .upsert(
+          { ...row, email, name: notification.to_name || null },
+          { onConflict: 'game_id,email' }
+        );
+
+  const { error } = await query;
 
   if (error) {
     throw new Error('Unable to update registration');
@@ -155,8 +173,8 @@ async function applyGameAction(supabase, notification, action) {
     status,
     message:
       status === 'registered'
-        ? "You're in! Changed your mind? Sign in to LinksInvite and tap \"I'm Out\" on the game anytime."
-        : 'You have been added to the waitlist.',
+        ? "You're in! See you on the course. Changed your mind? Use the \"I'm out\" link in your invite anytime."
+        : "The field is full, so you're on the waitlist — we'll email you if a spot opens up.",
   };
 }
 

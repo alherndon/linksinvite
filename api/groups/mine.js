@@ -115,7 +115,7 @@ export default async function handler(req, res) {
     if (gameIds.length > 0) {
       const { data: regs, error: regErr } = await adminSupabase
         .from('game_registrations')
-        .select('game_id, user_id, status, position')
+        .select('game_id, user_id, status, position, email, name')
         .in('game_id', gameIds);
       if (regErr) throw new Error('Unable to load registrations');
       regRows = regs || [];
@@ -142,6 +142,31 @@ export default async function handler(req, res) {
       handicap: Number(row.handicap) || 0,
       ghin: row.ghin || '',
     }));
+
+    // eVite-style email guests have no account. Surface each as a lightweight
+    // user keyed by a synthetic "guest:<email>" id so the roster can show and
+    // count them alongside members. A roster row is a member (user_id) or a
+    // guest (email) — rosterKey picks whichever identifies it.
+    const rosterKey = (r) =>
+      r.user_id || (r.email ? `guest:${String(r.email).toLowerCase()}` : null);
+
+    const seenGuest = new Set();
+    for (const r of regRows) {
+      if (r.user_id || !r.email) continue;
+      const id = `guest:${String(r.email).toLowerCase()}`;
+      if (seenGuest.has(id)) continue;
+      seenGuest.add(id);
+      users.push({
+        id,
+        firstName: r.name || String(r.email).split('@')[0],
+        lastName: '',
+        email: r.email,
+        phone: '',
+        handicap: 0,
+        ghin: '',
+        guest: true,
+      });
+    }
 
     const memsByGroup = {};
     for (const m of allMems || []) {
@@ -190,11 +215,13 @@ export default async function handler(req, res) {
         recurrence: row.recurrence || null,
         registrations: regsForGame
           .filter((r) => String(r.status || '').includes('registered'))
-          .map((r) => r.user_id),
+          .map(rosterKey)
+          .filter(Boolean),
         waitlist: regsForGame
           .filter((r) => String(r.status || '').includes('waitlisted'))
           .sort((a, b) => (a.position || 0) - (b.position || 0))
-          .map((r) => r.user_id),
+          .map(rosterKey)
+          .filter(Boolean),
         teeTimeRequests: ttrsForGame.map((t) => ({
           id: String(t.response_token_hash || t.id || ''),
           sentAt: t.sent_at

@@ -37,7 +37,7 @@ describe('email/respond', () => {
     expect(res._body).toContain('Confirm your response');
     // Confirm page renders a POST form — does NOT mutate state
     expect(res._body).toContain('method="POST"');
-    expect(res._body).toContain("Yes, I'm in");
+    expect(res._body).toContain("I'm in");
   });
 
   it('GET returns "Already Recorded" page for a token that was already used', async () => {

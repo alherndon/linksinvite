@@ -51,7 +51,7 @@ async function processGame(game, tomorrow) {
 
   const { data: regs } = await supabaseAdmin
     .from('game_registrations')
-    .select('user_id, status, position, registered_at, users ( first_name, last_name, email )')
+    .select('user_id, status, position, registered_at, email, name, users ( first_name, last_name, email )')
     .eq('game_id', game.id)
     .order('registered_at', { ascending: true });
 
@@ -61,7 +61,7 @@ async function processGame(game, tomorrow) {
     .sort((a, b) => (a.position || 0) - (b.position || 0));
 
   const signature = (regs || [])
-    .map((r) => `${r.user_id}:${r.status}`)
+    .map((r) => `${r.user_id || r.email}:${r.status}`)
     .sort()
     .join('|');
 
@@ -82,7 +82,9 @@ async function processGame(game, tomorrow) {
   const shouldSend = (isEve && !nightBeforeSent) || changed;
   if (!shouldSend) return { game_id: game.id, sent: false, reason: 'no-change' };
 
-  const recipients = (regs || []).map((r) => r.users?.email).filter(Boolean);
+  const recipients = (regs || [])
+    .map((r) => r.users?.email || r.email)
+    .filter(Boolean);
   if (recipients.length === 0) return { game_id: game.id, sent: false, reason: 'no-recipients' };
 
   const locationName = game.locations?.name || '';
@@ -134,7 +136,12 @@ async function sendBatch(emails) {
 function playerName(row) {
   const fn = row.users?.first_name || '';
   const ln = row.users?.last_name || '';
-  return (fn + ' ' + ln).trim() || 'Golfer';
+  const accountName = (fn + ' ' + ln).trim();
+  return (
+    accountName ||
+    row.name ||
+    (row.email ? row.email.split('@')[0] : 'Golfer')
+  );
 }
 
 function digestHtml({ game, locationName, registered, waitlisted, weather }) {

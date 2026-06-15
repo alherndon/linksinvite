@@ -4,7 +4,7 @@ import {
   getBearerToken,
 } from '../_lib/supabase.js';
 
-const DEFAULT_ACTIONS = ['yes', 'no', 'waitlist'];
+const DEFAULT_ACTIONS = ['yes', 'no'];
 
 function requireEnv(name) {
   const value = process.env[name];
@@ -52,7 +52,7 @@ function buildResponseLinks(baseUrl, token, actions = DEFAULT_ACTIONS) {
   });
 }
 
-function buildHtmlEmail({ body, responseLinks }) {
+function buildHtmlEmail({ body, responseLinks, weatherHtml = '' }) {
   const linkMarkup = responseLinks.length > 0
     ? responseLinks
         .map(
@@ -69,9 +69,74 @@ function buildHtmlEmail({ body, responseLinks }) {
   return `
     <div style="font-family:Arial,sans-serif;line-height:1.5;color:#111827">
       <p>${escapeHtml(body).replace(/\n/g, '<br />')}</p>
+      ${weatherHtml}
       ${linkMarkup}
     </div>
   `;
+}
+
+function weekdayOf(dateStr) {
+  if (!dateStr) return null;
+  const [y, m, d] = String(dateStr).split('-').map(Number);
+  if (!y || !m || !d) return null;
+  return [
+    'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday',
+  ][new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
+}
+
+// Best-effort: call our own weather endpoint. Failures never block an invite.
+async function fetchWeather(baseUrl, location) {
+  if (!baseUrl || !location) return null;
+  try {
+    const r = await fetch(
+      `${baseUrl}/api/weather?location=${encodeURIComponent(location)}&days=7`
+    );
+    if (!r.ok) return null;
+    return await r.json();
+  } catch {
+    return null;
+  }
+}
+
+// Compact forecast for the email: the game-day row when it falls inside the
+// 7-day window, otherwise the next few days, plus the overall advice line.
+function buildWeatherBlocks(weather, game, courseName) {
+  if (!weather?.days?.length) return { weatherHtml: '', weatherText: '' };
+
+  const wd = weekdayOf(game?.scheduled_date);
+  const gameDay = wd ? weather.days.find((d) => d.dayName === wd) : null;
+  const focus = gameDay ? [gameDay] : weather.days.slice(0, 3);
+  const heading = courseName ? `Weather — ${escapeHtml(courseName)}` : 'Weather';
+
+  const rows = focus
+    .map(
+      (d) => `<tr>
+        <td style="padding:6px 10px;border-top:1px solid #eef1ee;font-weight:600">${escapeHtml(d.dayName)}</td>
+        <td style="padding:6px 10px;border-top:1px solid #eef1ee">${escapeHtml(d.condition)}</td>
+        <td style="padding:6px 10px;border-top:1px solid #eef1ee">${escapeHtml(d.temp)}</td>
+        <td style="padding:6px 10px;border-top:1px solid #eef1ee">${escapeHtml(d.rainChance)} rain</td>
+        <td style="padding:6px 10px;border-top:1px solid #eef1ee;color:#4a5a4a">${escapeHtml(d.playability)}</td>
+      </tr>`
+    )
+    .join('');
+
+  const weatherHtml = `
+    <div style="margin:18px 0;padding:14px 16px;background:#f4f6f4;border-radius:8px">
+      <p style="margin:0 0 8px;font-weight:600;color:#1a2e1a">${heading}</p>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;border-collapse:collapse">${rows}</table>
+      ${weather.overallAdvice ? `<p style="margin:10px 0 0;color:#4a5a4a;font-size:13px">${escapeHtml(weather.overallAdvice)}</p>` : ''}
+    </div>
+  `;
+
+  const textLines = [
+    courseName ? `Weather — ${courseName}` : 'Weather',
+    ...focus.map(
+      (d) => `${d.dayName}: ${d.condition}, ${d.temp}, ${d.rainChance} rain (${d.playability})`
+    ),
+  ];
+  if (weather.overallAdvice) textLines.push(weather.overallAdvice);
+
+  return { weatherHtml, weatherText: textLines.join('\n') };
 }
 
 async function sendWithResend({ from, to, subject, html, text }) {
@@ -192,6 +257,7 @@ export default async function handler(req, res) {
       gameId = null,
       recipientUserId = null,
       toEmail,
+      toName = null,
       eventType = 'game_invite',
       subject = 'LinksInvite invitation',
       body = 'Can you play?',
@@ -226,9 +292,35 @@ export default async function handler(req, res) {
     const fromEmail = requireEnv('EMAIL_FROM');
     const baseUrl = getPublicAppUrl(req);
     const responseLinks = buildResponseLinks(baseUrl, rawToken, actions);
-    const html = buildHtmlEmail({ body, responseLinks });
+
+    // Weather summary for the game's course (best-effort; never blocks send).
+    let weatherBlocks = { weatherHtml: '', weatherText: '' };
+    if (gameId) {
+      try {
+        const { data: gameRow } = await adminSupabase
+          .from('games')
+          .select('scheduled_date, locations ( name, address )')
+          .eq('id', gameId)
+          .maybeSingle();
+        const loc = gameRow?.locations;
+        const locationStr = loc?.name
+          ? `${loc.name}${loc.address ? `, ${loc.address}` : ''}`
+          : null;
+        const weather = await fetchWeather(baseUrl, locationStr);
+        weatherBlocks = buildWeatherBlocks(weather, gameRow, loc?.name);
+      } catch {
+        /* weather is optional — ignore failures */
+      }
+    }
+
+    const html = buildHtmlEmail({
+      body,
+      responseLinks,
+      weatherHtml: weatherBlocks.weatherHtml,
+    });
     const text = [
       body,
+      ...(weatherBlocks.weatherText ? ['', weatherBlocks.weatherText] : []),
       '',
       ...responseLinks.map(({ action, url }) => `${action.toUpperCase()}: ${url}`),
     ].join('\n');
@@ -239,6 +331,8 @@ export default async function handler(req, res) {
         group_id: groupId,
         game_id: gameId,
         user_id: recipientUserId,
+        to_email: toEmail,
+        to_name: toName,
         event_type: eventType,
         response_token_hash: responseTokenHash,
       })

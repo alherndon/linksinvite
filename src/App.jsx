@@ -1699,6 +1699,9 @@ const GameInvitePanel=({game,group,users,onSendInvite})=>{
   const [sending,setSending]=useState(false);
   const [message,setMessage]=useState("");
   const [error,setError]=useState("");
+  const [guestEmail,setGuestEmail]=useState("");
+  const [guestName,setGuestName]=useState("");
+  const [guestSending,setGuestSending]=useState(false);
   const loc=getLoc(group,game.locationId);
   const defaultBody=[
     `Can you play with ${group.name} on ${game.day}, ${game.date} at ${game.time}?`,
@@ -1713,6 +1716,7 @@ const GameInvitePanel=({game,group,users,onSendInvite})=>{
 
   const selectedUser=getUser(memberUsers,selectedUserId);
   const alreadyIn=game.registrations.includes(selectedUserId)||game.waitlist.includes(selectedUserId);
+  const inputStyle={background:S.surface,border:`1px solid ${S.cardBorder}`,borderRadius:8,padding:"8px 10px",color:S.text,fontSize:13,fontFamily:"inherit"};
 
   const send=async()=>{
     if(!selectedUser)return;
@@ -1727,23 +1731,47 @@ const GameInvitePanel=({game,group,users,onSendInvite})=>{
     }
   };
 
-  if(memberUsers.length===0)return null;
+  const sendGuest=async()=>{
+    const email=guestEmail.trim().toLowerCase();
+    if(!email.includes("@")||!email.includes(".")){setError("Enter a valid email address.");return;}
+    setGuestSending(true);setMessage("");setError("");
+    try{
+      await onSendInvite(game,{email,firstName:guestName.trim()},inviteBody);
+      setMessage(`Invite sent to ${email}`);
+      setGuestEmail("");setGuestName("");
+    }catch(err){
+      setError(err.message);
+    }finally{
+      setGuestSending(false);
+    }
+  };
 
   return (
     <div style={{marginTop:12,padding:"12px 0",borderTop:`1px solid ${S.cardBorder}33`,borderBottom:`1px solid ${S.cardBorder}33`}}>
       <div style={{fontSize:11,color:S.textMuted,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:8}}>Email Invite</div>
       <TA label="" value={inviteBody} onChange={setInviteBody} rows={3}/>
+      {memberUsers.length>0&&(
+        <div style={{display:"flex",gap:8,alignItems:"flex-start",flexWrap:"wrap"}}>
+          <select value={selectedUserId} onChange={e=>{setSelectedUserId(e.target.value);setMessage("");setError("");}} style={{flex:"1 1 220px",...inputStyle}}>
+            {memberUsers.map(u=>(
+              <option key={u.id} value={u.id}>{fullName(u)} - {u.email}</option>
+            ))}
+          </select>
+          <Btn small onClick={send} disabled={sending||!selectedUser}>
+            {sending?"Sending...":"Invite Member"}
+          </Btn>
+        </div>
+      )}
+      {alreadyIn&&<div style={{fontSize:11,color:S.warning,marginTop:6}}>This player is already registered or waitlisted. A new response link will still work.</div>}
+      <div style={{fontSize:11,color:S.textMuted,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",margin:"12px 0 8px"}}>Or invite anyone by email</div>
       <div style={{display:"flex",gap:8,alignItems:"flex-start",flexWrap:"wrap"}}>
-        <select value={selectedUserId} onChange={e=>{setSelectedUserId(e.target.value);setMessage("");setError("");}} style={{flex:"1 1 220px",background:S.surface,border:`1px solid ${S.cardBorder}`,borderRadius:8,padding:"8px 10px",color:S.text,fontSize:13,fontFamily:"inherit"}}>
-          {memberUsers.map(u=>(
-            <option key={u.id} value={u.id}>{fullName(u)} - {u.email}</option>
-          ))}
-        </select>
-        <Btn small onClick={send} disabled={sending||!selectedUser}>
-          {sending?"Sending...":"Send Invite"}
+        <input value={guestName} onChange={e=>setGuestName(e.target.value)} placeholder="Name (optional)" style={{flex:"1 1 140px",...inputStyle}}/>
+        <input value={guestEmail} onChange={e=>setGuestEmail(e.target.value)} placeholder="golfer@example.com" type="email" style={{flex:"1 1 200px",...inputStyle}}/>
+        <Btn small onClick={sendGuest} disabled={guestSending||!guestEmail.trim()}>
+          {guestSending?"Sending...":"Send Invite"}
         </Btn>
       </div>
-      {alreadyIn&&<div style={{fontSize:11,color:S.warning,marginTop:6}}>This player is already registered or waitlisted. A new response link will still work.</div>}
+      <div style={{fontSize:11,color:S.textDim,marginTop:6}}>No account needed — they tap “I’m in” or “I’m out” right from the email.</div>
       {message&&<div style={{fontSize:12,color:S.accent,marginTop:6}}>{message}</div>}
       {error&&<div style={{fontSize:12,color:S.danger,marginTop:6}}>{error}</div>}
     </div>
@@ -1783,7 +1811,11 @@ const BulkInvitePanel=({game,group,onSendInvite})=>{
 
   const handleInviteAll=async()=>{
     if(!results)return;
-    const toInvite=[...(results.added||[]),...(results.alreadyMember||[])];
+    const members=[...(results.added||[]),...(results.alreadyMember||[])]
+      .map(u=>({id:u.userId,email:u.email,firstName:u.firstName,lastName:u.lastName}));
+    // Emails with no account are invited as eVite-style guests.
+    const guests=(results.notFound||[]).map(email=>({email,firstName:""}));
+    const toInvite=[...members,...guests];
     if(toInvite.length===0)return;
     setInviting(true);setInviteStatus("");
     const loc=getLoc(group,game.locationId);
@@ -1792,9 +1824,9 @@ const BulkInvitePanel=({game,group,onSendInvite})=>{
       loc?.name?`Course: ${loc.name}`:null,
     ].filter(Boolean).join("\n");
     let sent=0;
-    for(const u of toInvite){
+    for(const r of toInvite){
       try{
-        await onSendInvite(game,{id:u.userId,email:u.email,firstName:u.firstName,lastName:u.lastName},defaultBody);
+        await onSendInvite(game,r,defaultBody);
         sent++;
       }catch{}
     }
@@ -1821,8 +1853,8 @@ const BulkInvitePanel=({game,group,onSendInvite})=>{
         <div style={{marginTop:12,fontSize:13,lineHeight:1.7}}>
           {results.added?.length>0&&<div style={{color:S.accent}}>✓ Added ({results.added.length}): {results.added.map(u=>`${u.firstName} ${u.lastName}`).join(", ")}</div>}
           {results.alreadyMember?.length>0&&<div style={{color:S.textMuted}}>Already members ({results.alreadyMember.length}): {results.alreadyMember.map(u=>`${u.firstName} ${u.lastName}`).join(", ")}</div>}
-          {results.notFound?.length>0&&<div style={{color:S.warning}}>No account found ({results.notFound.length}): {results.notFound.join(", ")}</div>}
-          {((results.added?.length||0)+(results.alreadyMember?.length||0))>0&&(
+          {results.notFound?.length>0&&<div style={{color:S.textMuted}}>No account yet ({results.notFound.length}) — they'll be invited as guests: {results.notFound.join(", ")}</div>}
+          {((results.added?.length||0)+(results.alreadyMember?.length||0)+(results.notFound?.length||0))>0&&(
             <div style={{marginTop:10,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
               <Btn small onClick={handleInviteAll} disabled={inviting}>{inviting?"Sending...":"Send Game Invites to All"}</Btn>
               {inviteStatus&&<span style={{fontSize:12,color:S.accent}}>{inviteStatus}</span>}
@@ -1928,6 +1960,20 @@ export default function App(){
       setDb({users:[],groups:[],games:[]});
     }
   };
+
+  // Email RSVPs update the roster out-of-band (on the guest's device), so the
+  // owner's open tab won't know. Re-pull when they return to it so counts stay
+  // current without a manual reload.
+  useEffect(()=>{
+    if(!userId)return;
+    const refresh=()=>{if(document.visibilityState==="visible")loadData(userId);};
+    window.addEventListener("focus",refresh);
+    document.addEventListener("visibilitychange",refresh);
+    return ()=>{
+      window.removeEventListener("focus",refresh);
+      document.removeEventListener("visibilitychange",refresh);
+    };
+  },[userId]);
 
   useEffect(()=>{
     if(!supabase){
@@ -2126,8 +2172,9 @@ export default function App(){
           body:JSON.stringify({
             groupId:game.groupId,
             gameId:game.id,
-            recipientUserId:recipient.id,
+            recipientUserId:(recipient.id&&!String(recipient.id).startsWith("guest:"))?recipient.id:null,
             toEmail:recipient.email,
+            toName:[recipient.firstName,recipient.lastName].filter(Boolean).join(" ").trim()||null,
             eventType:"game_cancellation",
             subject:`Game cancelled — ${game.day}, ${game.date}`,
             body:[
@@ -2257,18 +2304,24 @@ export default function App(){
 
     const location=getLoc(group,game.locationId);
     const subject=`Can you play ${game.day}?`;
+    const greetName=recipient.firstName||recipient.name||"there";
     const bodyContent=customBody?.trim()||[
       `Can you play with ${group.name} on ${game.day}, ${game.date} at ${game.time}?`,
       location?.name?`Course: ${location.name}`:null,
       game.description?`Details: ${game.description}`:null,
     ].filter(Boolean).join("\n");
     const body=[
-      `Hi ${recipient.firstName},`,
+      `Hi ${greetName},`,
       "",
       bodyContent,
       "",
-      "Use the buttons below to respond. Changed your mind? Sign in and tap \"I'm Out\" anytime.",
+      "Tap “I’m in” or “I’m out” below to respond — no account needed.",
     ].join("\n");
+
+    // Members carry a real account id; email-only guests don't. A synthetic
+    // "guest:" id is not a real user, so never send it as recipientUserId.
+    const isRealUser=recipient.id&&!String(recipient.id).startsWith("guest:");
+    const toName=[recipient.firstName,recipient.lastName].filter(Boolean).join(" ").trim()||recipient.name||null;
 
     const res=await fetch("/api/email/send",{
       method:"POST",
@@ -2279,12 +2332,13 @@ export default function App(){
       body:JSON.stringify({
         groupId:group.id,
         gameId:game.id,
-        recipientUserId:recipient.id,
+        recipientUserId:isRealUser?recipient.id:null,
         toEmail:recipient.email,
+        toName,
         eventType:"game_invite",
         subject,
         body,
-        actions:["yes","no","waitlist"],
+        actions:["yes","no"],
       }),
     });
     const payload=await res.json().catch(()=>({}));
