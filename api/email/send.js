@@ -64,7 +64,27 @@ function buildResponseLinks(baseUrl, token, actions = DEFAULT_ACTIONS) {
   });
 }
 
-function buildHtmlEmail({ body, responseLinks }) {
+function buildForecastHtml(weather) {
+  if (!weather?.days?.length) return '';
+  const rows = weather.days
+    .map(
+      (d) => `<tr>
+        <td style="padding:6px 10px;border-top:1px solid #eef1ee;">${escapeHtml(d.dayName)}</td>
+        <td style="padding:6px 10px;border-top:1px solid #eef1ee;">${escapeHtml(d.condition)}</td>
+        <td style="padding:6px 10px;border-top:1px solid #eef1ee;">${escapeHtml(d.temp)}</td>
+        <td style="padding:6px 10px;border-top:1px solid #eef1ee;">${escapeHtml(d.rainChance)} rain</td>
+      </tr>`
+    )
+    .join('');
+  return `
+    <p style="margin:20px 0 6px;font-size:13px;font-weight:600;color:#1a2e1a;">7-day forecast${weather.courseName ? ` — ${escapeHtml(weather.courseName)}` : ''}</p>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;border-collapse:collapse;color:#111827;">${rows}</table>
+    ${weather.overallAdvice ? `<p style="margin:8px 0 0;font-size:13px;color:#4a5a4a;">${escapeHtml(weather.overallAdvice)}</p>` : ''}
+  `;
+}
+
+function buildHtmlEmail({ body, responseLinks, weather }) {
+  const forecastMarkup = buildForecastHtml(weather);
   const buttonMarkup = responseLinks.length > 0
     ? `<p style="margin:20px 0 0;">` +
       responseLinks
@@ -80,6 +100,7 @@ function buildHtmlEmail({ body, responseLinks }) {
   return `
     <div style="font-family:Arial,sans-serif;line-height:1.5;color:#111827">
       <p>${escapeHtml(body).replace(/\n/g, '<br />')}</p>
+      ${forecastMarkup}
       ${buttonMarkup}
     </div>
   `;
@@ -236,11 +257,40 @@ export default async function handler(req, res) {
     const responseTokenHash = hashToken(rawToken);
     const fromEmail = requireEnv('EMAIL_FROM');
     const baseUrl = getPublicAppUrl(req);
+
+    let weather = null;
+    if (gameId) {
+      try {
+        const { data: game } = await adminSupabase
+          .from('games')
+          .select('locations(name)')
+          .eq('id', gameId)
+          .maybeSingle();
+        const locationName = game?.locations?.name;
+        if (locationName) {
+          const wr = await fetch(
+            `${baseUrl}/api/weather?location=${encodeURIComponent(locationName)}&days=7`
+          );
+          if (wr.ok) weather = await wr.json();
+        }
+      } catch {
+        // weather failure never blocks the invite
+      }
+    }
+
     const responseLinks = buildResponseLinks(baseUrl, rawToken, actions);
-    const html = buildHtmlEmail({ body, responseLinks });
+    const html = buildHtmlEmail({ body, responseLinks, weather });
     const text = [
       body,
       '',
+      ...(weather?.days?.length
+        ? [
+            `7-day forecast — ${weather.courseName || ''}`,
+            ...weather.days.map((d) => `${d.dayName}: ${d.condition}, ${d.temp}, ${d.rainChance} rain`),
+            weather.overallAdvice || '',
+            '',
+          ]
+        : []),
       ...responseLinks.map(({ action, url }) => `${ACTION_LABELS[action] || action.toUpperCase()}: ${url}`),
     ].join('\n');
 
