@@ -1544,18 +1544,72 @@ const GameForm=({game,group,adminUser,onSave,onCancel,onSendRequest,accessToken}
 };
 
 // ── MEMBERS TAB ───────────────────────────────────────────────────────────────
-const MembersTab=({group,users,currentUserId,onUpdate,superAdmin})=>{
+const MembersTab=({group,users,currentUserId,onUpdate,superAdmin,accessToken})=>{
   const [inviteEmail,setInviteEmail]=useState("");
+  const [inviting,setInviting]=useState(false);
+  const [inviteResult,setInviteResult]=useState(null);
+
+  const handleSendInvite=async()=>{
+    const email=inviteEmail.trim();
+    if(!email||!email.includes("@"))return;
+    if(!accessToken){setInviteResult({type:"error",msg:"Your session has expired. Please sign in again."});return;}
+    setInviting(true);setInviteResult(null);
+    try{
+      const res=await fetch("/api/groups/invite-bulk",{
+        method:"POST",
+        headers:{"Content-Type":"application/json",Authorization:`Bearer ${accessToken}`},
+        body:JSON.stringify({groupId:group.id,emails:[email]}),
+      });
+      const payload=await res.json().catch(()=>({}));
+      if(!res.ok)throw new Error(payload.error||"Invite failed");
+      const added=payload.added||[];
+      const already=payload.alreadyMember||[];
+      const notFound=payload.notFound||[];
+      if(already.length>0){
+        setInviteResult({type:"warning",msg:`${email} is already in this group.`});
+        setInviteEmail("");return;
+      }
+      if(notFound.length>0){
+        setInviteResult({type:"warning",msg:`No LinksInvite account found for ${email}. Ask them to sign up at this site first.`});
+        return;
+      }
+      if(added.length>0){
+        const u=added[0];
+        // Send a welcome notification (fire-and-forget; failures don't block success)
+        fetch("/api/email/send",{
+          method:"POST",
+          headers:{"Content-Type":"application/json",Authorization:`Bearer ${accessToken}`},
+          body:JSON.stringify({
+            groupId:group.id,
+            recipientUserId:u.userId,
+            toEmail:u.email,
+            eventType:"group_invite",
+            subject:`You've been added to ${group.name} on LinksInvite`,
+            body:`Hi ${u.firstName},\n\nYou've been added to the ${group.name} golf group on LinksInvite. Sign in to see upcoming games and respond to invites.`,
+            actions:[],
+          }),
+        }).catch(()=>{});
+        setInviteResult({type:"success",msg:`${u.firstName} ${u.lastName} added to the group!`});
+        setInviteEmail("");
+      }
+    }catch(err){
+      setInviteResult({type:"error",msg:err.message||"Failed to send invite."});
+    }finally{
+      setInviting(false);
+    }
+  };
+
   return (
     <div>
       {superAdmin&&(
         <Card style={{marginBottom:16}}>
           <SecTitle>Invite a player</SecTitle>
-          <div style={{display:"flex",gap:8}}>
-            <div style={{flex:1}}><Inp label="" value={inviteEmail} onChange={setInviteEmail} placeholder="player@example.com" type="email"/></div>
-            <Btn small onClick={()=>setInviteEmail("")}>Send Invite</Btn>
+          <div style={{display:"flex",gap:8,alignItems:"flex-start"}}>
+            <div style={{flex:1}}><Inp label="" value={inviteEmail} onChange={v=>{setInviteEmail(v);setInviteResult(null);}} placeholder="player@example.com" type="email"/></div>
+            <Btn small onClick={handleSendInvite} disabled={inviting||!inviteEmail.trim().includes("@")}>{inviting?"Sending...":"Send Invite"}</Btn>
           </div>
-          <p style={{margin:0,fontSize:11,color:S.textDim}}>They'll receive a link to create an account and join your group as a player.</p>
+          {inviteResult&&<p style={{margin:"4px 0 0",fontSize:12,color:inviteResult.type==="success"?S.accent:inviteResult.type==="warning"?S.warning:S.danger}}>{inviteResult.msg}</p>}
+          {!inviteResult&&<p style={{margin:0,fontSize:11,color:S.textDim}}>They must already have a LinksInvite account. They'll receive a welcome email.</p>}
         </Card>
       )}
       {group.memberships.map(m=>{
@@ -1663,7 +1717,7 @@ const AdminPage=({group,user,users,games,onUpdateGroup,onSaveGame,onDeleteGame,o
       )}
 
       {tab==="locations"&&<Card><LocationsTab group={group} onUpdate={onUpdateGroup} superAdmin={superAdmin}/></Card>}
-      {tab==="members"&&superAdmin&&<MembersTab group={group} users={users} currentUserId={user.id} onUpdate={onUpdateGroup} superAdmin={superAdmin}/>}
+      {tab==="members"&&superAdmin&&<MembersTab group={group} users={users} currentUserId={user.id} onUpdate={onUpdateGroup} superAdmin={superAdmin} accessToken={accessToken}/>}
       {tab==="settings"&&superAdmin&&(
         <Card>
           <SecTitle>Group Settings</SecTitle>
