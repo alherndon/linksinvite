@@ -269,10 +269,18 @@ export default async function handler(req, res) {
           .maybeSingle();
         const locationName = game?.locations?.name;
         if (locationName) {
-          const wr = await fetch(
-            `${baseUrl}/api/weather?location=${encodeURIComponent(locationName)}&days=7`
-          );
-          if (wr.ok) weather = await wr.json();
+          // Bounded so a slow geocode/weather call can never hang the send.
+          const ctrl = new AbortController();
+          const timer = setTimeout(() => ctrl.abort(), 6000);
+          try {
+            const wr = await fetch(
+              `${baseUrl}/api/weather?location=${encodeURIComponent(locationName)}&days=7`,
+              { signal: ctrl.signal }
+            );
+            if (wr.ok) weather = await wr.json();
+          } finally {
+            clearTimeout(timer);
+          }
         }
       } catch {
         // weather failure never blocks the invite
