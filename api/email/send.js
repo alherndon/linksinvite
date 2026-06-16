@@ -3,6 +3,7 @@ import {
   getAdminSupabaseClient,
   getBearerToken,
 } from '../_lib/supabase.js';
+import { getForecast } from '../_lib/weather.js';
 
 const DEFAULT_ACTIONS = ['yes', 'no'];
 
@@ -269,18 +270,14 @@ export default async function handler(req, res) {
           .maybeSingle();
         const locationName = game?.locations?.name;
         if (locationName) {
-          // Bounded so a slow geocode/weather call can never hang the send.
-          const ctrl = new AbortController();
-          const timer = setTimeout(() => ctrl.abort(), 6000);
-          try {
-            const wr = await fetch(
-              `${baseUrl}/api/weather?location=${encodeURIComponent(locationName)}&days=7`,
-              { signal: ctrl.signal }
-            );
-            if (wr.ok) weather = await wr.json();
-          } finally {
-            clearTimeout(timer);
-          }
+          // Build the forecast in-process. Do NOT fetch our own /api/weather
+          // here: a function calling another function on the same Vercel
+          // deployment can deadlock, which was killing the send before it
+          // could insert or email. Bounded so a slow geocode can't delay it.
+          weather = await Promise.race([
+            getForecast(locationName, 7),
+            new Promise((resolve) => setTimeout(() => resolve(null), 6000)),
+          ]);
         }
       } catch {
         // weather failure never blocks the invite

@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { getForecast } from './_lib/weather.js';
 
 // Self-contained digest engine. A scheduler (Vercel cron once/day, or a free
 // external cron every 4h) just pokes it. Idempotent: only emails when the
@@ -11,7 +12,6 @@ const supabaseAdmin = createClient(
 );
 
 const FROM = process.env.EMAIL_FROM;
-const APP_URL = (process.env.PUBLIC_APP_URL || '').replace(/\/$/, '');
 const SECRET = process.env.CRON_SECRET || process.env.ADMIN_API_SECRET;
 
 export default async function handler(req, res) {
@@ -93,11 +93,12 @@ async function processGame(game, tomorrow) {
 
   let weather = null;
   try {
-    if (APP_URL && locationName) {
-      const wr = await fetch(
-        `${APP_URL}/api/weather?location=${encodeURIComponent(locationName)}&days=7`
-      );
-      if (wr.ok) weather = await wr.json();
+    if (locationName) {
+      // In-process forecast — no /api/weather self-fetch (deadlocks on Vercel).
+      weather = await Promise.race([
+        getForecast(locationName, 7),
+        new Promise((resolve) => setTimeout(() => resolve(null), 6000)),
+      ]);
     }
   } catch {
     /* weather failure never blocks the digest */
