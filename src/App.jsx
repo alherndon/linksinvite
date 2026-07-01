@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useId } from "react";
+﻿import { useState, useEffect, useRef, useId } from "react";
 import { supabase, supabaseConfigError, supabaseHost } from "./supabaseClient";
 
 const S = {
@@ -1748,30 +1748,30 @@ const GameInvitePanel=({game,group,users,onSendInvite})=>{
 
   return (
     <div style={{marginTop:0,paddingTop:14,paddingBottom:14,borderTop:`1px solid ${S.cardBorder}`}}>
-      <div style={{fontSize:11,color:S.textMuted,fontWeight:700,letterSpacing:”0.08em”,textTransform:”uppercase”,marginBottom:10}}>Send Email Invite</div>
-      <TA label=”” value={inviteBody} onChange={setInviteBody} rows={3}/>
+      <div style={{fontSize:11,color:S.textMuted,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:10}}>Send Email Invite</div>
+      <TA label="" value={inviteBody} onChange={setInviteBody} rows={3}/>
       {memberUsers.length>0&&(
-        <div style={{display:”flex”,gap:8,alignItems:”flex-start”,flexWrap:”wrap”}}>
-          <select value={selectedUserId} onChange={e=>{setSelectedUserId(e.target.value);setMessage(“”);setError(“”);}} style={{flex:”1 1 220px”,...inputStyle}}>
+        <div style={{display:"flex",gap:8,alignItems:"flex-start",flexWrap:"wrap"}}>
+          <select value={selectedUserId} onChange={e=>{setSelectedUserId(e.target.value);setMessage("");setError("");}} style={{flex:"1 1 220px",...inputStyle}}>
             {memberUsers.map(u=>(
               <option key={u.id} value={u.id}>{fullName(u)} — {u.email}</option>
             ))}
           </select>
           <Btn small onClick={send} disabled={sending||!selectedUser}>
-            {sending?”Sending…”:”Invite Member”}
+            {sending?"Sending…":"Invite Member"}
           </Btn>
         </div>
       )}
       {alreadyIn&&<div style={{fontSize:11,color:S.warning,marginTop:6}}>This player is already registered or waitlisted. A new response link will still work.</div>}
-      <div style={{marginTop:14,paddingTop:14,borderTop:`1px solid ${S.cardBorder}`,fontSize:11,color:S.textMuted,fontWeight:700,letterSpacing:”0.08em”,textTransform:”uppercase”,marginBottom:10}}>Invite a Guest by Email</div>
-      <div style={{display:”flex”,gap:8,alignItems:”flex-start”,flexWrap:”wrap”}}>
-        <input value={guestName} onChange={e=>setGuestName(e.target.value)} placeholder=”Name (optional)” style={{flex:”1 1 140px”,...inputStyle}}/>
-        <input value={guestEmail} onChange={e=>setGuestEmail(e.target.value)} placeholder=”golfer@example.com” type=”email” style={{flex:”1 1 200px”,...inputStyle}}/>
+      <div style={{marginTop:14,paddingTop:14,borderTop:`1px solid ${S.cardBorder}`,fontSize:11,color:S.textMuted,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:10}}>Invite a Guest by Email</div>
+      <div style={{display:"flex",gap:8,alignItems:"flex-start",flexWrap:"wrap"}}>
+        <input value={guestName} onChange={e=>setGuestName(e.target.value)} placeholder="Name (optional)" style={{flex:"1 1 140px",...inputStyle}}/>
+        <input value={guestEmail} onChange={e=>setGuestEmail(e.target.value)} placeholder="golfer@example.com" type="email" style={{flex:"1 1 200px",...inputStyle}}/>
         <Btn small onClick={sendGuest} disabled={guestSending||!guestEmail.trim()}>
-          {guestSending?”Sending…”:”Send Invite”}
+          {guestSending?"Sending…":"Send Invite"}
         </Btn>
       </div>
-      <div style={{fontSize:11,color:S.textDim,marginTop:6}}>No account needed — they tap “I’m in” or “I’m out” right from the email.</div>
+      <div style={{fontSize:11,color:S.textDim,marginTop:6}}>No account needed — they tap "I'm in" or "I'm out" right from the email.</div>
       {message&&<div style={{fontSize:12,color:S.accent,marginTop:6}}>{message}</div>}
       {error&&<div style={{fontSize:12,color:S.danger,marginTop:6}}>{error}</div>}
     </div>
@@ -2507,7 +2507,7 @@ export default function App(){
       "",
       bodyContent,
       "",
-      "Tap “I’m in” or “I’m out” below to respond — no account needed.",
+      `Tap "I'm in" or "I'm out" below to respond — no account needed.`,
     ].join("\n");
 
     // Members carry a real account id; email-only guests don't. A synthetic
