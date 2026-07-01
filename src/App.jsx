@@ -919,7 +919,7 @@ const TopNav=({page,setPage,user,group,groups,onGroupChange,onSignOut})=>{
         </select>
       )}
       <div style={{display:"flex",gap:2}}>
-        {[{id:"splash",label:"Games"},{id:"groups",label:"Groups"},{id:"profile",label:"Profile"},...(canEditGroup?[{id:"admin",label:"Admin"}]:[])].map(({id,label})=>(
+        {[{id:"splash",label:"Games"},{id:"groups",label:"Groups"},{id:"profile",label:"Profile"},...(canEditGroup?[{id:"admin",label:"Admin"}]:[]),{id:"help",label:"Help"}].map(({id,label})=>(
           <button key={id} onClick={()=>setPage(id)} style={{background:page===id?S.accentSubtle:"transparent",border:"none",borderRadius:8,padding:"6px 12px",color:page===id?S.accent:S.textMuted,fontSize:13,fontWeight:page===id?600:400,cursor:"pointer",fontFamily:"inherit"}}>{label}</button>
         ))}
       </div>
@@ -1214,7 +1214,7 @@ const TeeTimePanel=({game,location,onSimulateResponse})=>{
   const reqs=game.teeTimeRequests||[];
   if(reqs.length===0)return null;
   return (
-    <div style={{marginTop:16,paddingTop:16,borderTop:`1px solid ${S.cardBorder}33`}}>
+    <div style={{paddingTop:14,paddingBottom:2,borderTop:`1px solid ${S.cardBorder}`}}>
       <div style={{fontSize:11,fontWeight:700,color:S.textMuted,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:10}}>Tee Time Requests</div>
       {reqs.map(req=>(
         <div key={req.id} style={{background:S.surface,borderRadius:10,padding:"12px 14px",marginBottom:8}}>
@@ -1629,7 +1629,7 @@ const AdminPage=({group,user,users,games,onUpdateGroup,onSaveGame,onDeleteGame,o
                 <GameForm key={`edit-${g.id}`} game={g} group={group} adminUser={user} onSave={u=>{onSaveGame(u);setEditingId(null);}} onCancel={()=>setEditingId(null)} onSendRequest={onSendRequest} accessToken={accessToken}/>
               ):(
                 <Card style={{marginBottom:16}}>
-                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8,paddingBottom:14}}>
                     <div>
                       <div style={{fontSize:16,fontWeight:700,color:S.text}}>{g.day} · {g.date} · {g.time}</div>
                       <div style={{fontSize:12,color:S.textMuted,marginTop:3}}>
@@ -1647,8 +1647,8 @@ const AdminPage=({group,user,users,games,onUpdateGroup,onSaveGame,onDeleteGame,o
                   <GameInvitePanel game={g} group={group} users={users} onSendInvite={onSendGameInvite}/>
                   <BulkInvitePanel game={g} group={group} onSendInvite={onSendGameInvite} accessToken={accessToken}/>
                   {g.registrations.length>0&&(
-                    <div style={{marginTop:12,paddingTop:12,borderTop:`1px solid ${S.cardBorder}33`}}>
-                      <div style={{fontSize:11,color:S.textMuted,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:8}}>Roster</div>
+                    <div style={{paddingTop:14,paddingBottom:14,borderTop:`1px solid ${S.cardBorder}`}}>
+                      <div style={{fontSize:11,color:S.textMuted,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:10}}>Roster</div>
                       {g.registrations.map(uid2=>{
                         const u2=getUser(users,uid2);
                         return u2?(<div key={uid2} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 0"}}><Avatar user={u2} size={26}/><span style={{fontSize:13,color:S.text}}>{fullName(u2)}</span><span style={{fontSize:12,color:S.textMuted}}>HCP {u2.handicap}</span></div>):null;
@@ -1747,28 +1747,28 @@ const GameInvitePanel=({game,group,users,onSendInvite})=>{
   };
 
   return (
-    <div style={{marginTop:12,padding:"12px 0",borderTop:`1px solid ${S.cardBorder}33`,borderBottom:`1px solid ${S.cardBorder}33`}}>
-      <div style={{fontSize:11,color:S.textMuted,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:8}}>Email Invite</div>
-      <TA label="" value={inviteBody} onChange={setInviteBody} rows={3}/>
+    <div style={{marginTop:0,paddingTop:14,paddingBottom:14,borderTop:`1px solid ${S.cardBorder}`}}>
+      <div style={{fontSize:11,color:S.textMuted,fontWeight:700,letterSpacing:”0.08em”,textTransform:”uppercase”,marginBottom:10}}>Send Email Invite</div>
+      <TA label=”” value={inviteBody} onChange={setInviteBody} rows={3}/>
       {memberUsers.length>0&&(
-        <div style={{display:"flex",gap:8,alignItems:"flex-start",flexWrap:"wrap"}}>
-          <select value={selectedUserId} onChange={e=>{setSelectedUserId(e.target.value);setMessage("");setError("");}} style={{flex:"1 1 220px",...inputStyle}}>
+        <div style={{display:”flex”,gap:8,alignItems:”flex-start”,flexWrap:”wrap”}}>
+          <select value={selectedUserId} onChange={e=>{setSelectedUserId(e.target.value);setMessage(“”);setError(“”);}} style={{flex:”1 1 220px”,...inputStyle}}>
             {memberUsers.map(u=>(
-              <option key={u.id} value={u.id}>{fullName(u)} - {u.email}</option>
+              <option key={u.id} value={u.id}>{fullName(u)} — {u.email}</option>
             ))}
           </select>
           <Btn small onClick={send} disabled={sending||!selectedUser}>
-            {sending?"Sending...":"Invite Member"}
+            {sending?”Sending…”:”Invite Member”}
           </Btn>
         </div>
       )}
       {alreadyIn&&<div style={{fontSize:11,color:S.warning,marginTop:6}}>This player is already registered or waitlisted. A new response link will still work.</div>}
-      <div style={{fontSize:11,color:S.textMuted,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",margin:"12px 0 8px"}}>Or invite anyone by email</div>
-      <div style={{display:"flex",gap:8,alignItems:"flex-start",flexWrap:"wrap"}}>
-        <input value={guestName} onChange={e=>setGuestName(e.target.value)} placeholder="Name (optional)" style={{flex:"1 1 140px",...inputStyle}}/>
-        <input value={guestEmail} onChange={e=>setGuestEmail(e.target.value)} placeholder="golfer@example.com" type="email" style={{flex:"1 1 200px",...inputStyle}}/>
+      <div style={{marginTop:14,paddingTop:14,borderTop:`1px solid ${S.cardBorder}`,fontSize:11,color:S.textMuted,fontWeight:700,letterSpacing:”0.08em”,textTransform:”uppercase”,marginBottom:10}}>Invite a Guest by Email</div>
+      <div style={{display:”flex”,gap:8,alignItems:”flex-start”,flexWrap:”wrap”}}>
+        <input value={guestName} onChange={e=>setGuestName(e.target.value)} placeholder=”Name (optional)” style={{flex:”1 1 140px”,...inputStyle}}/>
+        <input value={guestEmail} onChange={e=>setGuestEmail(e.target.value)} placeholder=”golfer@example.com” type=”email” style={{flex:”1 1 200px”,...inputStyle}}/>
         <Btn small onClick={sendGuest} disabled={guestSending||!guestEmail.trim()}>
-          {guestSending?"Sending...":"Send Invite"}
+          {guestSending?”Sending…”:”Send Invite”}
         </Btn>
       </div>
       <div style={{fontSize:11,color:S.textDim,marginTop:6}}>No account needed — they tap “I’m in” or “I’m out” right from the email.</div>
@@ -1810,8 +1810,8 @@ const AddPlayerPanel=({game,group,users,onAddPlayer})=>{
   };
 
   return(
-    <div style={{marginTop:10,paddingTop:10,borderTop:`1px solid ${S.cardBorder}33`}}>
-      <div style={{fontSize:11,color:S.textMuted,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:8}}>Add to Roster</div>
+    <div style={{marginTop:0,paddingTop:14,paddingBottom:14,borderTop:`1px solid ${S.cardBorder}`}}>
+      <div style={{fontSize:11,color:S.textMuted,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:10}}>Add to Roster</div>
       <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
         <select value={selectedId} onChange={e=>{setSelectedId(e.target.value);setMessage("");setError("");}} style={{flex:"1 1 220px",...inputStyle}}>
           {notInGame.map(u=>(
@@ -1885,13 +1885,15 @@ const BulkInvitePanel=({game,group,onSendInvite,accessToken})=>{
   };
 
   if(!open)return(
-    <button onClick={()=>setOpen(true)} style={{background:"none",border:"none",color:S.accent,fontSize:12,fontWeight:600,cursor:"pointer",padding:"8px 0 2px",fontFamily:"inherit",display:"block",letterSpacing:"0.03em"}}>
-      ▼ Bulk import golfers by email
-    </button>
+    <div style={{borderTop:`1px solid ${S.cardBorder}`,paddingTop:12,paddingBottom:2}}>
+      <button onClick={()=>setOpen(true)} style={{background:"none",border:"none",color:S.accent,fontSize:12,fontWeight:600,cursor:"pointer",padding:0,fontFamily:"inherit",display:"block",letterSpacing:"0.03em"}}>
+        ▼ Bulk import golfers by email
+      </button>
+    </div>
   );
 
   return(
-    <div style={{marginTop:8,paddingTop:12,borderTop:`1px solid ${S.cardBorder}33`}}>
+    <div style={{paddingTop:14,paddingBottom:14,borderTop:`1px solid ${S.cardBorder}`}}>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
         <div style={{fontSize:11,fontWeight:700,color:S.textMuted,letterSpacing:"0.08em",textTransform:"uppercase"}}>Bulk Import Golfers</div>
         <button onClick={()=>{setOpen(false);setResults(null);setEmailText("");setImportError("");setInviteStatus("");}} style={{background:"none",border:"none",color:S.textMuted,fontSize:13,cursor:"pointer",fontFamily:"inherit",padding:0}}>✕</button>
@@ -1979,6 +1981,118 @@ const ProfilePage=({user,groups,games,onUpdateUser})=>{
     </div>
   );
 };
+
+// ── HELP PAGE ─────────────────────────────────────────────────────────────────
+const HelpSection=({title,badge,defaultOpen=false,children})=>{
+  const [open,setOpen]=useState(defaultOpen);
+  return(
+    <div style={{marginBottom:8,border:`1px solid ${S.cardBorder}`,borderRadius:10,overflow:"hidden"}}>
+      <button onClick={()=>setOpen(o=>!o)} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"14px 16px",background:open?S.card:S.surface,border:"none",cursor:"pointer",fontFamily:"inherit",gap:12,textAlign:"left"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <span style={{fontSize:15,fontWeight:700,color:S.text}}>{title}</span>
+          {badge&&<span style={{fontSize:10,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",padding:"2px 7px",borderRadius:4,background:S.accentSubtle,color:S.accent}}>{badge}</span>}
+        </div>
+        <span style={{color:S.textMuted,fontSize:13,flexShrink:0}}>{open?"▲":"▼"}</span>
+      </button>
+      {open&&(
+        <div style={{padding:"4px 16px 16px",background:S.card,borderTop:`1px solid ${S.cardBorder}`,lineHeight:1.65,fontSize:13,color:S.textMuted}}>
+          {children}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const HelpStep=({n,children})=>(
+  <div style={{display:"flex",gap:12,alignItems:"flex-start",marginTop:12}}>
+    <div style={{flexShrink:0,width:22,height:22,borderRadius:"50%",background:S.accentSubtle,border:`1px solid ${S.accent}44`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:S.accent,marginTop:1}}>{n}</div>
+    <div style={{color:S.text,paddingTop:2}}>{children}</div>
+  </div>
+);
+
+const HelpTip=({children})=>(
+  <div style={{marginTop:12,padding:"10px 12px",background:S.accentSubtle,borderLeft:`3px solid ${S.accent}`,borderRadius:"0 6px 6px 0",color:S.text,fontSize:12}}>
+    {children}
+  </div>
+);
+
+const HelpPage=({isAdmin})=>(
+  <div style={{maxWidth:680,margin:"0 auto",padding:"24px 16px"}}>
+    <h1 style={{margin:"0 0 4px",fontSize:22,fontWeight:800,color:S.text,letterSpacing:"-0.02em"}}>Help</h1>
+    <p style={{margin:"0 0 20px",fontSize:13,color:S.textMuted}}>How to use LinksInvite — tap a section to expand it.</p>
+
+    <HelpSection title="Getting Started" defaultOpen>
+      <HelpStep n="1">Fill out your <strong style={{color:S.text}}>Profile</strong> — add your name, phone, and current handicap index so your organizer can build balanced foursomes.</HelpStep>
+      <HelpStep n="2">You'll be added to a <strong style={{color:S.text}}>group</strong> by your organizer, or you can create your own group and invite others.</HelpStep>
+      <HelpStep n="3">Once you're in a group, the <strong style={{color:S.text}}>Games</strong> tab shows all upcoming rounds. Register with "I'm in" or pass with "I'm out."</HelpStep>
+      <HelpTip>Keep your handicap up to date — it's used for pairing and quota scoring.</HelpTip>
+    </HelpSection>
+
+    <HelpSection title="Viewing Games & RSVPing">
+      <div style={{marginTop:12,color:S.text}}>The <strong>Games</strong> page shows every upcoming round for your group.</div>
+      <HelpStep n="1">Each game card shows the <strong style={{color:S.text}}>date, tee time, course, and roster</strong>. Scroll down to see who else is playing.</HelpStep>
+      <HelpStep n="2">Tap <strong style={{color:S.text}}>"I'm in"</strong> to register. If the game is already full you'll be added to the waitlist automatically.</HelpStep>
+      <HelpStep n="3">Changed your mind? Tap <strong style={{color:S.text}}>"I'm out"</strong> to remove yourself. If you were on the waitlist the spot is freed for the next person.</HelpStep>
+      <HelpTip>The waitlist moves up automatically when a registered player drops out.</HelpTip>
+    </HelpSection>
+
+    <HelpSection title="Responding to Email Invites">
+      <div style={{marginTop:12,color:S.text}}>Your organizer may email you an invite before you log in.</div>
+      <HelpStep n="1">Open the email and tap <strong style={{color:S.text}}>"I'm in"</strong> or <strong style={{color:S.text}}>"I'm out"</strong> — you'll land on a confirmation page.</HelpStep>
+      <HelpStep n="2">Tap the button on that page to confirm. Your response is recorded immediately — <strong style={{color:S.text}}>no account needed.</strong></HelpStep>
+      <HelpStep n="3">Each link can only be used once. If you need to change your answer, log in to the app and update it from the Games page.</HelpStep>
+      <HelpTip>Email links are one-time-use for security. The app always shows your current status.</HelpTip>
+    </HelpSection>
+
+    <HelpSection title="Your Profile">
+      <HelpStep n="1">Go to the <strong style={{color:S.text}}>Profile</strong> tab in the top navigation.</HelpStep>
+      <HelpStep n="2">Update your <strong style={{color:S.text}}>Handicap Index</strong> whenever it changes — this is used for balanced pairings and quota-based games.</HelpStep>
+      <HelpStep n="3">Add your <strong style={{color:S.text}}>GHIN number</strong> (optional) to enable system-based pairing through the USGA Handicap System.</HelpStep>
+    </HelpSection>
+
+    {isAdmin&&<>
+      <div style={{marginTop:20,marginBottom:8,fontSize:11,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",color:S.textMuted}}>Admin & Organizer</div>
+
+      <HelpSection title="Creating & Editing a Game" badge="Admin">
+        <HelpStep n="1">Go to <strong style={{color:S.text}}>Admin → Games</strong> and click <strong style={{color:S.text}}>"+ New Game."</strong></HelpStep>
+        <HelpStep n="2">Set the <strong style={{color:S.text}}>day, date, and first tee time.</strong> Choose an existing course or type a new one.</HelpStep>
+        <HelpStep n="3">Set <strong style={{color:S.text}}>Max Players</strong> — once this is reached, new registrants go to the waitlist.</HelpStep>
+        <HelpStep n="4">Toggle <strong style={{color:S.text}}>Recurring</strong> to repeat the game weekly, biweekly, or monthly without re-entering details.</HelpStep>
+        <HelpStep n="5">Click <strong style={{color:S.text}}>Save Game.</strong> The game immediately appears on the Games page for all group members.</HelpStep>
+        <HelpTip>To edit an existing game, click the "Edit" button on its card in the Admin panel.</HelpTip>
+      </HelpSection>
+
+      <HelpSection title="Adding Players to the Roster" badge="Admin">
+        <div style={{marginTop:12,color:S.text,fontWeight:600}}>Option 1 — Add to Roster (instant, no email)</div>
+        <div style={{marginTop:6,color:S.textMuted}}>Use the <strong style={{color:S.text}}>Add to Roster</strong> dropdown on the game card to place a group member directly on the roster. They won't receive an email — use this when you've already confirmed with them in person.</div>
+
+        <div style={{marginTop:14,color:S.text,fontWeight:600}}>Option 2 — Send Email Invite (member)</div>
+        <div style={{marginTop:6,color:S.textMuted}}>Under <strong style={{color:S.text}}>Send Email Invite</strong>, select a group member and click "Invite Member." They get an email with "I'm in / I'm out" buttons and are added to the roster when they respond.</div>
+
+        <div style={{marginTop:14,color:S.text,fontWeight:600}}>Option 3 — Invite a Guest by Email</div>
+        <div style={{marginTop:6,color:S.textMuted}}>Enter any email address under <strong style={{color:S.text}}>Invite a Guest by Email.</strong> The recipient taps "I'm in" from the email — <strong style={{color:S.text}}>no account required.</strong> Great for one-off or visiting golfers.</div>
+
+        <div style={{marginTop:14,color:S.text,fontWeight:600}}>Option 4 — Bulk Import</div>
+        <div style={{marginTop:6,color:S.textMuted}}>Click <strong style={{color:S.text}}>"▼ Bulk import golfers by email,"</strong> paste a list of emails (one per line or comma-separated), click "Add to Group," then "Send Game Invites to All."</div>
+
+        <HelpTip>Players already on the roster are grayed out in the Add to Roster dropdown and won't receive duplicate registrations.</HelpTip>
+      </HelpSection>
+
+      <HelpSection title="Tee Time Requests" badge="Admin">
+        <HelpStep n="1">While editing a game, click <strong style={{color:S.text}}>"Request Tee Times."</strong> Enter the contact at the pro shop and your preferred times.</HelpStep>
+        <HelpStep n="2">An email is sent to the pro shop with a one-click response link. They can confirm your time or suggest alternates.</HelpStep>
+        <HelpStep n="3">The response appears in the Admin panel under <strong style={{color:S.text}}>"Tee Time Requests"</strong> for that game — confirmed times show in green, alternates in orange.</HelpStep>
+      </HelpSection>
+
+      <HelpSection title="Managing Members & Roles" badge="Superadmin">
+        <HelpStep n="1">Go to <strong style={{color:S.text}}>Admin → Members & Roles</strong> (visible to superadmins only).</HelpStep>
+        <HelpStep n="2">Promote a player to <strong style={{color:S.text}}>Admin</strong> to let them create games and send invites.</HelpStep>
+        <HelpStep n="3">Promote to <strong style={{color:S.text}}>Superadmin</strong> to give full control including group settings and member management.</HelpStep>
+        <HelpStep n="4">To remove a member, click the remove button next to their name. They'll lose access to the group immediately.</HelpStep>
+      </HelpSection>
+    </>}
+  </div>
+);
 
 // ── APP ROOT ──────────────────────────────────────────────────────────────────
 export default function App(){
@@ -2365,10 +2479,10 @@ export default function App(){
       if(isFull)return{...g,waitlist:[...g.waitlist,player.id]};
       return{...g,registrations:[...g.registrations,player.id]};
     })}));
-    const res=await fetch("/api/games/add-player",{
+    const res=await fetch("/api/games/save",{
       method:"POST",
       headers:{"Content-Type":"application/json",Authorization:`Bearer ${accessToken}`},
-      body:JSON.stringify({gameId:game.id,userId:player.id}),
+      body:JSON.stringify({action:"add-player",gameId:game.id,userId:player.id}),
     });
     const payload=await res.json().catch(()=>({}));
     if(!res.ok){
@@ -2472,6 +2586,7 @@ export default function App(){
       )}
       {page==="admin"&&group&&user&&canEdit(group,userId)&&<AdminPage group={group} user={user} users={db.users} games={db.games} onUpdateGroup={handleUpdateGroup} onSaveGame={handleSaveGame} onDeleteGame={handleDeleteGame} onCancelGame={handleCancelGame} onSendRequest={handleSendRequest} onSimulateResponse={handleSimulateResponse} onSendGameInvite={handleSendGameInvite} onAddPlayer={handleAddPlayer} accessToken={accessToken}/>}
       {page==="profile"&&user&&<ProfilePage user={user} groups={db.groups} games={db.games} onUpdateUser={handleUpdateUser}/>}
+      {page==="help"&&user&&<HelpPage isAdmin={!!(group&&canEdit(group,userId))}/>}
     </div>
   );
 }

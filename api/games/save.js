@@ -11,6 +11,58 @@ function firstValue(value) {
   return Array.isArray(value) ? value[0] : value;
 }
 
+async function handleAddPlayer(req, res, adminSupabase, callerId) {
+  const { gameId, userId } = req.body || {};
+  if (!gameId) return res.status(400).json({ error: 'gameId is required' });
+  if (!userId) return res.status(400).json({ error: 'userId is required' });
+
+  const { data: game, error: gameError } = await adminSupabase
+    .from('games')
+    .select('id, group_id, max_players')
+    .eq('id', gameId)
+    .maybeSingle();
+
+  if (gameError) return res.status(500).json({ error: 'Unable to load game' });
+  if (!game) return res.status(404).json({ error: 'Game not found' });
+
+  const { data: membership, error: membershipError } = await adminSupabase
+    .from('group_memberships')
+    .select('role')
+    .eq('group_id', game.group_id)
+    .eq('user_id', callerId)
+    .maybeSingle();
+
+  if (membershipError) return res.status(500).json({ error: 'Unable to validate membership' });
+  if (!membership || !['superadmin', 'admin'].includes(membership.role)) {
+    return res.status(403).json({ error: 'Only group admins can add players' });
+  }
+
+  const { data: existingRegs, error: regsError } = await adminSupabase
+    .from('game_registrations')
+    .select('status, position')
+    .eq('game_id', gameId);
+
+  if (regsError) return res.status(500).json({ error: 'Unable to load registrations' });
+
+  const registeredCount = (existingRegs || []).filter(r => r.status === 'registered').length;
+  const maxPlayers = Number(game.max_players) || 16;
+  const status = registeredCount < maxPlayers ? 'registered' : 'waitlisted';
+  const waitlistPositions = (existingRegs || [])
+    .filter(r => r.status === 'waitlisted')
+    .map(r => Number(r.position) || 0);
+  const position = status === 'waitlisted' ? Math.max(0, ...waitlistPositions) + 1 : null;
+
+  const { data, error } = await adminSupabase
+    .from('game_registrations')
+    .upsert({ game_id: gameId, user_id: userId, status, position }, { onConflict: 'game_id,user_id' })
+    .select()
+    .single();
+
+  if (error) return res.status(500).json({ error: 'Unable to add player', details: error.message });
+
+  return res.status(200).json({ data, status });
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', process.env.PUBLIC_APP_URL || '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -40,6 +92,10 @@ export default async function handler(req, res) {
       error: 'Invalid access token',
       details: authError?.message || 'Supabase rejected the session token',
     });
+  }
+
+  if (req.body?.action === 'add-player') {
+    return handleAddPlayer(req, res, adminSupabase, authData.user.id);
   }
 
   const game = req.body?.game || req.body;
