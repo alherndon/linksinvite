@@ -41,11 +41,8 @@ function resultPage({ title, message }) {
 }
 
 function sendResult(req, res, status, payload) {
-  if (req.method === 'GET') {
-    res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    return res.status(status).send(resultPage({ title: payload.title, message: payload.message }));
-  }
-  return res.status(status).json(payload);
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  return res.status(status).send(resultPage({ title: payload.title, message: payload.message }));
 }
 
 async function findNotification(supabase, token) {

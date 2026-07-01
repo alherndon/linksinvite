@@ -1588,7 +1588,7 @@ const MembersTab=({group,users,currentUserId,onUpdate,superAdmin})=>{
 };
 
 // ── ADMIN PAGE ────────────────────────────────────────────────────────────────
-const AdminPage=({group,user,users,games,onUpdateGroup,onSaveGame,onDeleteGame,onCancelGame,onSendRequest,onSimulateResponse,onSendGameInvite,accessToken})=>{
+const AdminPage=({group,user,users,games,onUpdateGroup,onSaveGame,onDeleteGame,onCancelGame,onSendRequest,onSimulateResponse,onSendGameInvite,onAddPlayer,accessToken})=>{
   const [tab,setTab]=useState("games");
   const [showNew,setShowNew]=useState(false);
   const [editingId,setEditingId]=useState(null);
@@ -1643,6 +1643,7 @@ const AdminPage=({group,user,users,games,onUpdateGroup,onSaveGame,onDeleteGame,o
                       <Btn variant="danger" small onClick={()=>onDeleteGame(g.id)}>Delete</Btn>
                     </div>
                   </div>
+                  <AddPlayerPanel game={g} group={group} users={users} onAddPlayer={onAddPlayer}/>
                   <GameInvitePanel game={g} group={group} users={users} onSendInvite={onSendGameInvite}/>
                   <BulkInvitePanel game={g} group={group} onSendInvite={onSendGameInvite} accessToken={accessToken}/>
                   {g.registrations.length>0&&(
@@ -1771,6 +1772,56 @@ const GameInvitePanel=({game,group,users,onSendInvite})=>{
         </Btn>
       </div>
       <div style={{fontSize:11,color:S.textDim,marginTop:6}}>No account needed — they tap “I’m in” or “I’m out” right from the email.</div>
+      {message&&<div style={{fontSize:12,color:S.accent,marginTop:6}}>{message}</div>}
+      {error&&<div style={{fontSize:12,color:S.danger,marginTop:6}}>{error}</div>}
+    </div>
+  );
+};
+
+// ── ADD PLAYER (direct roster add, no email) ──────────────────────────────────
+const AddPlayerPanel=({game,group,users,onAddPlayer})=>{
+  const notInGame=group.memberships
+    .map(m=>getUser(users,m.userId))
+    .filter(u=>u&&!game.registrations.includes(u.id)&&!game.waitlist.includes(u.id));
+  const [selectedId,setSelectedId]=useState(notInGame[0]?.id||"");
+  const [adding,setAdding]=useState(false);
+  const [message,setMessage]=useState("");
+  const [error,setError]=useState("");
+  const inputStyle={background:S.surface,border:`1px solid ${S.cardBorder}`,borderRadius:8,padding:"8px 10px",color:S.text,fontSize:13,fontFamily:"inherit"};
+
+  useEffect(()=>{
+    if(!selectedId&&notInGame[0]?.id)setSelectedId(notInGame[0].id);
+  },[notInGame.length,selectedId]);
+
+  if(notInGame.length===0)return null;
+
+  const handleAdd=async()=>{
+    const player=getUser(users,selectedId);
+    if(!player)return;
+    setAdding(true);setMessage("");setError("");
+    try{
+      await onAddPlayer(game,player);
+      setMessage(`${fullName(player)} added to the roster.`);
+    }catch(err){
+      setError(err.message);
+    }finally{
+      setAdding(false);
+    }
+  };
+
+  return(
+    <div style={{marginTop:10,paddingTop:10,borderTop:`1px solid ${S.cardBorder}33`}}>
+      <div style={{fontSize:11,color:S.textMuted,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:8}}>Add to Roster</div>
+      <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+        <select value={selectedId} onChange={e=>{setSelectedId(e.target.value);setMessage("");setError("");}} style={{flex:"1 1 220px",...inputStyle}}>
+          {notInGame.map(u=>(
+            <option key={u.id} value={u.id}>{fullName(u)} · HCP {u.handicap}</option>
+          ))}
+        </select>
+        <Btn small onClick={handleAdd} disabled={adding||!selectedId}>
+          {adding?"Adding…":"+ Add to Roster"}
+        </Btn>
+      </div>
       {message&&<div style={{fontSize:12,color:S.accent,marginTop:6}}>{message}</div>}
       {error&&<div style={{fontSize:12,color:S.danger,marginTop:6}}>{error}</div>}
     </div>
@@ -2306,6 +2357,26 @@ export default function App(){
     setDb(d=>({...d,games:d.games.map(g=>g.id===gameId?{...g,teeTimeRequests:[...(g.teeTimeRequests||[]),request]}:g)}));
   };
 
+  const handleAddPlayer=async(game,player)=>{
+    if(!accessToken)throw new Error("Sign in again to add players.");
+    const isFull=game.registrations.length>=game.maxPlayers;
+    setDb(d=>({...d,games:d.games.map(g=>{
+      if(g.id!==game.id)return g;
+      if(isFull)return{...g,waitlist:[...g.waitlist,player.id]};
+      return{...g,registrations:[...g.registrations,player.id]};
+    })}));
+    const res=await fetch("/api/games/add-player",{
+      method:"POST",
+      headers:{"Content-Type":"application/json",Authorization:`Bearer ${accessToken}`},
+      body:JSON.stringify({gameId:game.id,userId:player.id}),
+    });
+    const payload=await res.json().catch(()=>({}));
+    if(!res.ok){
+      await loadData(userId);
+      throw new Error(payload.error||"Unable to add player");
+    }
+  };
+
   const handleSendGameInvite=async(game,recipient,customBody)=>{
     if(!accessToken)throw new Error("Sign in again to send email invites.");
 
@@ -2399,7 +2470,7 @@ export default function App(){
           onOpenAddGame={id=>{setGroupId(id);setNewGameGroupId(id);setPage("splash");}}
         />
       )}
-      {page==="admin"&&group&&user&&canEdit(group,userId)&&<AdminPage group={group} user={user} users={db.users} games={db.games} onUpdateGroup={handleUpdateGroup} onSaveGame={handleSaveGame} onDeleteGame={handleDeleteGame} onCancelGame={handleCancelGame} onSendRequest={handleSendRequest} onSimulateResponse={handleSimulateResponse} onSendGameInvite={handleSendGameInvite} accessToken={accessToken}/>}
+      {page==="admin"&&group&&user&&canEdit(group,userId)&&<AdminPage group={group} user={user} users={db.users} games={db.games} onUpdateGroup={handleUpdateGroup} onSaveGame={handleSaveGame} onDeleteGame={handleDeleteGame} onCancelGame={handleCancelGame} onSendRequest={handleSendRequest} onSimulateResponse={handleSimulateResponse} onSendGameInvite={handleSendGameInvite} onAddPlayer={handleAddPlayer} accessToken={accessToken}/>}
       {page==="profile"&&user&&<ProfilePage user={user} groups={db.groups} games={db.games} onUpdateUser={handleUpdateUser}/>}
     </div>
   );
