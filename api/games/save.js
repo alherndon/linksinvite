@@ -63,6 +63,43 @@ async function handleAddPlayer(req, res, adminSupabase, callerId) {
   return res.status(200).json({ data, status });
 }
 
+async function handleRemovePlayer(req, res, adminSupabase, callerId) {
+  const { gameId, userId } = req.body || {};
+  if (!gameId) return res.status(400).json({ error: 'gameId is required' });
+  if (!userId) return res.status(400).json({ error: 'userId is required' });
+
+  const { data: game, error: gameError } = await adminSupabase
+    .from('games')
+    .select('id, group_id')
+    .eq('id', gameId)
+    .maybeSingle();
+
+  if (gameError) return res.status(500).json({ error: 'Unable to load game' });
+  if (!game) return res.status(404).json({ error: 'Game not found' });
+
+  const { data: membership, error: membershipError } = await adminSupabase
+    .from('group_memberships')
+    .select('role')
+    .eq('group_id', game.group_id)
+    .eq('user_id', callerId)
+    .maybeSingle();
+
+  if (membershipError) return res.status(500).json({ error: 'Unable to validate membership' });
+  if (!membership || !['superadmin', 'admin'].includes(membership.role)) {
+    return res.status(403).json({ error: 'Only group admins can remove players' });
+  }
+
+  const { error } = await adminSupabase
+    .from('game_registrations')
+    .delete()
+    .eq('game_id', gameId)
+    .eq('user_id', userId);
+
+  if (error) return res.status(500).json({ error: 'Unable to remove player', details: error.message });
+
+  return res.status(200).json({ removed: true });
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', process.env.PUBLIC_APP_URL || '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -96,6 +133,10 @@ export default async function handler(req, res) {
 
   if (req.body?.action === 'add-player') {
     return handleAddPlayer(req, res, adminSupabase, authData.user.id);
+  }
+
+  if (req.body?.action === 'remove-player') {
+    return handleRemovePlayer(req, res, adminSupabase, authData.user.id);
   }
 
   const game = req.body?.game || req.body;

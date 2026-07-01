@@ -1544,7 +1544,7 @@ const GameForm=({game,group,adminUser,onSave,onCancel,onSendRequest,accessToken}
 };
 
 // ── MEMBERS TAB ───────────────────────────────────────────────────────────────
-const MembersTab=({group,users,currentUserId,onUpdate,superAdmin})=>{
+const MembersTab=({group,users,currentUserId,onUpdate,superAdmin,isAdmin})=>{
   const [inviteEmail,setInviteEmail]=useState("");
   return (
     <div>
@@ -1579,7 +1579,7 @@ const MembersTab=({group,users,currentUserId,onUpdate,superAdmin})=>{
                 </select>
               </div>
             ):<RoleBadge role={m.role}/>}
-            {superAdmin&&!isSelf&&<Btn variant="danger" small onClick={()=>onUpdate({...group,memberships:group.memberships.filter(x=>x.userId!==m.userId)})}>Remove</Btn>}
+            {!isSelf&&(superAdmin||m.role==="player")&&<Btn variant="danger" small onClick={()=>onUpdate({...group,memberships:group.memberships.filter(x=>x.userId!==m.userId)})}>Remove</Btn>}
           </div>
         );
       })}
@@ -1588,14 +1588,15 @@ const MembersTab=({group,users,currentUserId,onUpdate,superAdmin})=>{
 };
 
 // ── ADMIN PAGE ────────────────────────────────────────────────────────────────
-const AdminPage=({group,user,users,games,onUpdateGroup,onSaveGame,onDeleteGame,onCancelGame,onSendRequest,onSimulateResponse,onSendGameInvite,onAddPlayer,accessToken})=>{
+const AdminPage=({group,user,users,games,onUpdateGroup,onSaveGame,onDeleteGame,onCancelGame,onSendRequest,onSimulateResponse,onSendGameInvite,onAddPlayer,onRemoveFromGame,accessToken})=>{
   const [tab,setTab]=useState("games");
   const [showNew,setShowNew]=useState(false);
   const [editingId,setEditingId]=useState(null);
   const currentRole=getMem(group,user.id)?.role;
   const superAdmin=currentRole==="superadmin";
   const myGames=groupGames(games,group.id);
-  const tabs=[{id:"games",label:"Games"},{id:"locations",label:"Locations"},...(superAdmin?[{id:"members",label:"Members & Roles"},{id:"settings",label:"Group Settings"}]:[])];
+  const isAdmin=["superadmin","admin"].includes(currentRole);
+  const tabs=[{id:"games",label:"Games"},{id:"locations",label:"Locations"},{id:"members",label:"Members"},...(superAdmin?[{id:"settings",label:"Group Settings"}]:[])];
 
   return (
     <div style={{maxWidth:780,margin:"0 auto",padding:"24px 16px"}}>
@@ -1646,13 +1647,38 @@ const AdminPage=({group,user,users,games,onUpdateGroup,onSaveGame,onDeleteGame,o
                   <AddPlayerPanel game={g} group={group} users={users} onAddPlayer={onAddPlayer}/>
                   <GameInvitePanel game={g} group={group} users={users} onSendInvite={onSendGameInvite}/>
                   <BulkInvitePanel game={g} group={group} onSendInvite={onSendGameInvite} accessToken={accessToken}/>
-                  {g.registrations.length>0&&(
+                  {(g.registrations.length>0||g.waitlist.length>0)&&(
                     <div style={{paddingTop:14,paddingBottom:14,borderTop:`1px solid ${S.cardBorder}`}}>
-                      <div style={{fontSize:11,color:S.textMuted,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:10}}>Roster</div>
+                      <div style={{fontSize:11,color:S.textMuted,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:10}}>
+                        Roster <span style={{fontWeight:400,color:S.textDim}}>({g.registrations.length}/{g.maxPlayers})</span>
+                      </div>
                       {g.registrations.map(uid2=>{
                         const u2=getUser(users,uid2);
-                        return u2?(<div key={uid2} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 0"}}><Avatar user={u2} size={26}/><span style={{fontSize:13,color:S.text}}>{fullName(u2)}</span><span style={{fontSize:12,color:S.textMuted}}>HCP {u2.handicap}</span></div>):null;
+                        return u2?(
+                          <div key={uid2} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 0"}}>
+                            <Avatar user={u2} size={26}/>
+                            <span style={{fontSize:13,color:S.text,flex:1}}>{fullName(u2)}</span>
+                            <span style={{fontSize:12,color:S.textMuted}}>HCP {u2.handicap}</span>
+                            <button onClick={()=>onRemoveFromGame(g,uid2)} title="Remove from roster" style={{background:"none",border:"none",color:S.danger,fontSize:16,cursor:"pointer",padding:"0 4px",lineHeight:1,fontFamily:"inherit"}}>✕</button>
+                          </div>
+                        ):null;
                       })}
+                      {g.waitlist.length>0&&(
+                        <>
+                          <div style={{fontSize:11,color:S.textMuted,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",margin:"12px 0 8px"}}>Waitlist</div>
+                          {g.waitlist.map((uid2,idx)=>{
+                            const u2=getUser(users,uid2);
+                            return u2?(
+                              <div key={uid2} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 0"}}>
+                                <Avatar user={u2} size={26}/>
+                                <span style={{fontSize:13,color:S.textMuted,flex:1}}>{fullName(u2)}</span>
+                                <span style={{fontSize:12,color:S.textDim}}>#{idx+1}</span>
+                                <button onClick={()=>onRemoveFromGame(g,uid2)} title="Remove from waitlist" style={{background:"none",border:"none",color:S.danger,fontSize:16,cursor:"pointer",padding:"0 4px",lineHeight:1,fontFamily:"inherit"}}>✕</button>
+                              </div>
+                            ):null;
+                          })}
+                        </>
+                      )}
                     </div>
                   )}
                   <TeeTimePanel game={g} location={location} onSimulateResponse={onSimulateResponse}/>
@@ -1664,7 +1690,7 @@ const AdminPage=({group,user,users,games,onUpdateGroup,onSaveGame,onDeleteGame,o
       )}
 
       {tab==="locations"&&<Card><LocationsTab group={group} onUpdate={onUpdateGroup} superAdmin={superAdmin}/></Card>}
-      {tab==="members"&&superAdmin&&<MembersTab group={group} users={users} currentUserId={user.id} onUpdate={onUpdateGroup} superAdmin={superAdmin}/>}
+      {tab==="members"&&isAdmin&&<MembersTab group={group} users={users} currentUserId={user.id} onUpdate={onUpdateGroup} superAdmin={superAdmin} isAdmin={isAdmin}/>}
       {tab==="settings"&&superAdmin&&(
         <Card>
           <SecTitle>Group Settings</SecTitle>
@@ -2491,6 +2517,27 @@ export default function App(){
     }
   };
 
+  const handleRemoveFromGame=async(game,playerId)=>{
+    if(!accessToken)throw new Error("Sign in again to remove players.");
+    setDb(d=>({...d,games:d.games.map(g=>{
+      if(g.id!==game.id)return g;
+      return{...g,
+        registrations:g.registrations.filter(id=>id!==playerId),
+        waitlist:g.waitlist.filter(id=>id!==playerId),
+      };
+    })}));
+    const res=await fetch("/api/games/save",{
+      method:"POST",
+      headers:{"Content-Type":"application/json",Authorization:`Bearer ${accessToken}`},
+      body:JSON.stringify({action:"remove-player",gameId:game.id,userId:playerId}),
+    });
+    const payload=await res.json().catch(()=>({}));
+    if(!res.ok){
+      await loadData(userId);
+      throw new Error(payload.error||"Unable to remove player");
+    }
+  };
+
   const handleSendGameInvite=async(game,recipient,customBody)=>{
     if(!accessToken)throw new Error("Sign in again to send email invites.");
 
@@ -2584,7 +2631,7 @@ export default function App(){
           onOpenAddGame={id=>{setGroupId(id);setNewGameGroupId(id);setPage("splash");}}
         />
       )}
-      {page==="admin"&&group&&user&&canEdit(group,userId)&&<AdminPage group={group} user={user} users={db.users} games={db.games} onUpdateGroup={handleUpdateGroup} onSaveGame={handleSaveGame} onDeleteGame={handleDeleteGame} onCancelGame={handleCancelGame} onSendRequest={handleSendRequest} onSimulateResponse={handleSimulateResponse} onSendGameInvite={handleSendGameInvite} onAddPlayer={handleAddPlayer} accessToken={accessToken}/>}
+      {page==="admin"&&group&&user&&canEdit(group,userId)&&<AdminPage group={group} user={user} users={db.users} games={db.games} onUpdateGroup={handleUpdateGroup} onSaveGame={handleSaveGame} onDeleteGame={handleDeleteGame} onCancelGame={handleCancelGame} onSendRequest={handleSendRequest} onSimulateResponse={handleSimulateResponse} onSendGameInvite={handleSendGameInvite} onAddPlayer={handleAddPlayer} onRemoveFromGame={handleRemoveFromGame} accessToken={accessToken}/>}
       {page==="profile"&&user&&<ProfilePage user={user} groups={db.groups} games={db.games} onUpdateUser={handleUpdateUser}/>}
       {page==="help"&&user&&<HelpPage isAdmin={!!(group&&canEdit(group,userId))}/>}
     </div>
