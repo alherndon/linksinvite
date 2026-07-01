@@ -76,7 +76,7 @@ export async function getForecast(location, days = 3) {
     const minTemp = Math.round(daily.temperature_2m_min[idx]);
     const rainChance = daily.precipitation_probability_max[idx] || 0;
 
-    let playability = 'Excellent';
+    let playability = 'Great';
     if (rainChance > 45) playability = 'Poor';
     else if (rainChance > 20 || maxTemp < 50) playability = 'Fair';
     else if (maxTemp > 95) playability = 'Hot';

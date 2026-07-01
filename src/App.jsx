@@ -29,8 +29,8 @@ const DEFAULT_RULES="Even number of golfers — 2 best balls, full handicap.\nOd
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 const uid=()=>crypto.randomUUID();
-const fullName=u=>`${u.firstName} ${u.lastName}`;
-const initials=u=>`${u.firstName[0]}${u.lastName[0]}`.toUpperCase();
+const fullName=u=>`${u.firstName||""} ${u.lastName||""}`.trim()||"Unknown";
+const initials=u=>((u.firstName||"?")[0]+((u.lastName||"")[0]||"")).toUpperCase();
 const getMem=(group,userId)=>group.memberships.find(m=>m.userId===userId);
 const canEdit=(group,userId)=>["superadmin","admin"].includes(getMem(group,userId)?.role);
 const isSA=(group,userId)=>getMem(group,userId)?.role==="superadmin";
@@ -958,8 +958,8 @@ const WeatherWidget=({location})=>{
       .finally(()=>setWxLoading(false));
   },[location?.name]);
 
-  const ratingColor=r=>r==="Excellent"?S.accent:r==="Hot"?S.gold:r==="Fair"?S.warning:S.danger;
-  const ratingBg=r=>r==="Excellent"?S.accentSubtle:r==="Hot"?"#2a2000":r==="Fair"?S.warningBg:S.dangerBg;
+  const ratingColor=r=>r==="Great"?S.accent:r==="Hot"?S.gold:r==="Fair"?S.warning:S.danger;
+  const ratingBg=r=>r==="Great"?S.accentSubtle:r==="Hot"?"#2a2000":r==="Fair"?S.warningBg:S.dangerBg;
 
   return (
     <Card style={{marginBottom:20}}>
